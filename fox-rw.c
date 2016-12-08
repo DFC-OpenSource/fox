@@ -50,22 +50,27 @@ static int fox_write_blk (NVM_VBLK vblk, struct fox_node *node,
 
         buf_off = buf->buf_w + node->wl->geo.vpg_nbytes * i;
         fox_timestamp_tmp_start(&node->stats);
-
+        
         if (nvm_vblk_pwrite(vblk, buf_off, node->wl->geo.vpg_nbytes,
-                                                 node->wl->geo.vpg_nbytes * i))
+                                                 node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_W, &node->stats, 1);
-
+            goto FAILED;
+        }
+        
         fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
-        fox_set_stats (FOX_STATS_BWRITTEN, &node->stats,
-                                                      node->wl->geo.vpg_nbytes);
+        fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
+        fox_set_stats(FOX_STATS_BWRITTEN,&node->stats,node->wl->geo.vpg_nbytes);
+        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);   
+        
+FAILED:
         fox_set_stats (FOX_STATS_PGS_W, &node->stats, 1);
-
         node->stats.pgs_done++;
-
+        
         if (fox_update_runtime(node)||(node->wl->stats->flags & FOX_FLAG_DONE))
             return 1;
     }
-    usleep(node->delay);
+    if (node->delay)
+        usleep(node->delay);
 
     return 0;
 }
@@ -85,15 +90,21 @@ static int fox_read_blk (NVM_VBLK vblk, struct fox_node *node,
         fox_timestamp_tmp_start(&node->stats);
 
         if (nvm_vblk_pread(vblk, buf_off, node->wl->geo.vpg_nbytes,
-                                                 node->wl->geo.vpg_nbytes * i))
+                                                 node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_R, &node->stats, 1);
+            goto FAILED;
+        }
 
         fox_timestamp_end(FOX_STATS_READ_T, &node->stats);
+        fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
 
         if (node->wl->memcmp)
             fox_blkbuf_cmp(node, buf, i, 1);
 
         fox_set_stats (FOX_STATS_BREAD, &node->stats, node->wl->geo.vpg_nbytes);
+        fox_set_stats (FOX_STATS_BRW_SEC,&node->stats,node->wl->geo.vpg_nbytes);
+
+FAILED:
         fox_set_stats (FOX_STATS_PGS_R, &node->stats, 1);
 
         if (node->wl->w_factor == 0) {
@@ -105,7 +116,8 @@ static int fox_read_blk (NVM_VBLK vblk, struct fox_node *node,
         if (node->wl->stats->flags & FOX_FLAG_DONE)
             return 1;
     }
-    usleep(node->delay);
+    if (node->delay)
+        usleep(node->delay);
 
     return 0;
 }
@@ -165,7 +177,7 @@ void *fox_engine1 (void * arg)
 
     if (fox_alloc_blk_buf (node, &bufblk))
         goto OUT;
-
+    
     fox_start_node (node);
 
     do {

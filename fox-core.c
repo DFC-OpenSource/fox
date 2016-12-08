@@ -90,6 +90,9 @@ int main (int argc, char **argv) {
 
     if (!gl_stats || !wl)
         goto ERR;
+    
+    pthread_mutex_init (&wl->start_mut, NULL);
+    pthread_cond_init (&wl->start_con, NULL);
 
     wl->engine = FOX_ENGINE_1;
     wl->runtime = atoi(argv[3]);
@@ -129,11 +132,14 @@ int main (int argc, char **argv) {
     fox_monitor (nodes);
 
     fox_merge_stats (nodes, gl_stats);
-    fox_show_stats (wl);
+    fox_show_stats (wl, nodes);
 
     fox_free_vblks(wl);
     fox_exit_threads (nodes);
     fox_exit_stats (gl_stats);
+    
+    pthread_mutex_destroy (&wl->start_mut);
+    pthread_cond_destroy (&wl->start_con);
     free (gl_stats);
     free (wl);
 
@@ -142,6 +148,8 @@ int main (int argc, char **argv) {
 GEO:
     printf ("Workload not accepted.\n");
 FREE:
+    pthread_mutex_destroy (&wl->start_mut);
+    pthread_cond_destroy (&wl->start_con);
     free (gl_stats);
     free (wl);
 ERR:

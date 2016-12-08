@@ -16,11 +16,13 @@ enum {
     FOX_STATS_READ_T,
     FOX_STATS_WRITE_T,
     FOX_STATS_RUNTIME,
+    FOX_STATS_RW_SECT,
     FOX_STATS_ERASED_BLK,
     FOX_STATS_PGS_W,
     FOX_STATS_PGS_R,
     FOX_STATS_BREAD,
     FOX_STATS_BWRITTEN,
+    FOX_STATS_BRW_SEC,
     FOX_STATS_FAIL_CMP,
     FOX_STATS_FAIL_E,
     FOX_STATS_FAIL_R,
@@ -36,6 +38,7 @@ struct fox_stats {
     struct timeval  tval;
     struct timeval  tval_tmp;
     uint64_t        runtime;
+    uint64_t        rw_sect; /* r/w time in the last second */
     uint64_t        read_t;
     uint64_t        write_t;
     uint64_t        erase_t;
@@ -44,6 +47,7 @@ struct fox_stats {
     uint32_t        pgs_w;
     uint64_t        bread;
     uint64_t        bwritten;
+    uint64_t        brw_sec; /* transferred bytes in the last second */
     uint16_t        progress;
     uint32_t        pgs_done;
     uint32_t        fail_cmp;
@@ -72,6 +76,8 @@ struct fox_workload {
     NVM_GEO          geo;
     NVM_VBLK         *vblks;
     struct fox_stats *stats;
+    pthread_mutex_t  start_mut;
+    pthread_cond_t   start_con;
 };
 
 struct fox_blkbuf {
@@ -93,7 +99,7 @@ struct fox_node {
     struct fox_workload *wl;
     struct fox_stats    stats;
     NVM_VBLK            vblk_tgt;
-    LIST_ENTRY(node)    entry;
+    LIST_ENTRY(node)    entry;    
 };
 
 struct fox_node     *fox_create_threads (struct fox_workload *);
@@ -106,7 +112,7 @@ void                 fox_end_node (struct fox_node *);
 void                 fox_timestamp_start (struct fox_stats *);
 void                 fox_timestamp_tmp_start (struct fox_stats *);
 void                 fox_timestamp_end (uint8_t, struct fox_stats *);
-void                 fox_show_stats (struct fox_workload *);
+void                 fox_show_stats (struct fox_workload *, struct fox_node *);
 void                 fox_show_workload (struct fox_workload *);
 int                  fox_alloc_vblks (struct fox_workload *);
 void                 fox_free_vblks (struct fox_workload *);

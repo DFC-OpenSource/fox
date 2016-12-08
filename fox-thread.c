@@ -13,9 +13,12 @@ static uint8_t  *nodes_ch; /* set in config lun, used to pick a
 
 void fox_wait_for_ready (struct fox_workload *wl)
 {
-    do {
-        usleep (1);
-    } while (wl->stats->flags ^ FOX_FLAG_READY);
+    pthread_mutex_lock(&wl->start_mut);
+    
+    if (wl->stats->flags ^ FOX_FLAG_READY)
+        pthread_cond_wait(&wl->start_con, &wl->start_mut);
+    
+    pthread_mutex_unlock(&wl->start_mut);
 }
 
 static void fox_set_engine (struct fox_workload *wl)
