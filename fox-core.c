@@ -11,7 +11,7 @@ static int fox_check_workload (struct fox_workload *wl)
 {
     if (wl->channels > wl->geo.nchannels ||
             wl->luns > wl->geo.nluns ||
-            wl->blks > wl->geo.nblocks ||
+            wl->blks > wl->geo.nblocks - 6 ||
             wl->pgs > wl->geo.npages ||
             wl->channels < 1 ||
             wl->luns < 1 ||
