@@ -1,8 +1,16 @@
-OBJ = fox-core.o fox-thread.o fox-rw.o fox-stats.o fox-vblk.o fox-buf.o
+OBJ =  fox-core.o
+OBJ += fox-thread.o
+OBJ += fox-rw.o
+OBJ += fox-stats.o
+OBJ += fox-vblk.o
+OBJ += fox-buf.o
+OBJ += fox-output.o
 CC = gcc
-CFLAGS = -g
+CFLAGS = -g -Wall
 CFLAGSXX =
 DEPS =
+SLIB = -lpthread -ludev -fopenmp
+LLNVM = /usr/local/lib/liblightnvm.a
 
 all: fox
 
@@ -10,7 +18,7 @@ all: fox
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 fox : $(OBJ)
-	$(CC) $(CFLAGS) $(CFLAGSXX) $(OBJ) -o fox /usr/local/lib/liblightnvm.a -lpthread -ludev -fopenmp
+	$(CC) $(CFLAGS) $(CFLAGSXX) $(OBJ) -o fox $(LLNVM) $(SLIB)
 
 clean:
 	rm -f *.o fox
