@@ -109,12 +109,19 @@ void fox_timestamp_start (struct fox_stats *st)
     gettimeofday(&st->tval, NULL);
 }
 
-void fox_timestamp_tmp_start (struct fox_stats *st)
+uint64_t fox_timestamp_tmp_start (struct fox_stats *st)
 {
+    uint64_t usec;
+
     gettimeofday(&st->tval_tmp, NULL);
+
+    usec = st->tval_tmp.tv_sec * SEC64;
+    usec += st->tval_tmp.tv_usec;
+
+    return usec;
 }
 
-void fox_timestamp_end (uint8_t type, struct fox_stats *st)
+uint64_t fox_timestamp_end (uint8_t type, struct fox_stats *st)
 {
     struct timeval te;
     struct timeval *ts;
@@ -132,6 +139,8 @@ void fox_timestamp_end (uint8_t type, struct fox_stats *st)
     tot = usec_e - usec_s;
 
     fox_set_stats (type, st, tot);
+
+    return usec_e;
 }
 
 void fox_start_node (struct fox_node *node)

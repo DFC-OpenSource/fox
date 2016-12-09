@@ -36,11 +36,13 @@ static int fox_update_runtime (struct fox_node *node)
     return 0;
 }
 
-static int fox_write_blk (NVM_VBLK vblk, struct fox_node *node,
+static int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                         struct fox_blkbuf *buf, uint16_t npgs, uint16_t blkoff)
 {
     int i;
-    uint8_t *buf_off;
+    uint8_t *buf_off, failed = 0;
+    struct fox_output_row *row;
+    uint64_t tstart, tend;
 
     if (blkoff + npgs > node->npgs)
         printf ("Wrong write offset. pg (%d) > pgs_per_blk (%d).\n",
@@ -49,15 +51,17 @@ static int fox_write_blk (NVM_VBLK vblk, struct fox_node *node,
     for (i = blkoff; i < blkoff + npgs; i++) {
 
         buf_off = buf->buf_w + node->wl->geo.vpg_nbytes * i;
-        fox_timestamp_tmp_start(&node->stats);
+        tstart = fox_timestamp_tmp_start(&node->stats);
 
-        if (nvm_vblk_pwrite(vblk, buf_off, node->wl->geo.vpg_nbytes,
+        if (nvm_vblk_pwrite(tgt->vblk, buf_off, node->wl->geo.vpg_nbytes,
                                                  node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_W, &node->stats, 1);
+            tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
+            failed++;
             goto FAILED;
         }
 
-        fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
+        tend = fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
         fox_set_stats(FOX_STATS_BWRITTEN,&node->stats,node->wl->geo.vpg_nbytes);
         fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);
@@ -65,6 +69,22 @@ static int fox_write_blk (NVM_VBLK vblk, struct fox_node *node,
 FAILED:
         fox_set_stats (FOX_STATS_PGS_W, &node->stats, 1);
         node->stats.pgs_done++;
+
+        if (node->wl->output) {
+            row = fox_output_new ();
+            row->ch = tgt->ch;
+            row->lun = tgt->lun;
+            row->blk = tgt->blk;
+            row->pg = i;
+            row->tstart = tstart;
+            row->tend = tend;
+            row->ulat = tend - tstart;
+            row->type = 'w';
+            row->failed = failed;
+            row->datacmp = 2;
+            row->size = node->wl->geo.vpg_nbytes;
+            fox_output_append(row, node->nid);
+        }
 
         if (fox_update_runtime(node)||(node->wl->stats->flags & FOX_FLAG_DONE))
             return 1;
@@ -75,11 +95,13 @@ FAILED:
     return 0;
 }
 
-static int fox_read_blk (NVM_VBLK vblk, struct fox_node *node,
+static int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                         struct fox_blkbuf *buf, uint16_t npgs, uint16_t blkoff)
 {
     int i;
-    uint8_t *buf_off;
+    uint8_t *buf_off, failed = 0, cmp;
+    struct fox_output_row *row;
+    uint64_t tstart, tend;
 
     if (blkoff + npgs > node->npgs)
         printf ("Wrong read offset. pg (%d) > pgs_per_blk (%d).\n",
@@ -87,25 +109,42 @@ static int fox_read_blk (NVM_VBLK vblk, struct fox_node *node,
 
     for (i = blkoff; i < blkoff + npgs; i++) {
         buf_off = buf->buf_r + node->wl->geo.vpg_nbytes * i;
-        fox_timestamp_tmp_start(&node->stats);
+        tstart = fox_timestamp_tmp_start(&node->stats);
 
-        if (nvm_vblk_pread(vblk, buf_off, node->wl->geo.vpg_nbytes,
+        if (nvm_vblk_pread(tgt->vblk, buf_off, node->wl->geo.vpg_nbytes,
                                                  node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_R, &node->stats, 1);
+            tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
+            failed++;
             goto FAILED;
         }
 
-        fox_timestamp_end(FOX_STATS_READ_T, &node->stats);
+        tend = fox_timestamp_end(FOX_STATS_READ_T, &node->stats);
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
 
-        if (node->wl->memcmp)
-            fox_blkbuf_cmp(node, buf, i, 1);
+        cmp = (node->wl->memcmp) ? fox_blkbuf_cmp(node, buf, i, 1) : 2;
 
         fox_set_stats (FOX_STATS_BREAD, &node->stats, node->wl->geo.vpg_nbytes);
         fox_set_stats (FOX_STATS_BRW_SEC,&node->stats,node->wl->geo.vpg_nbytes);
 
 FAILED:
         fox_set_stats (FOX_STATS_PGS_R, &node->stats, 1);
+
+        if (node->wl->output) {
+            row = fox_output_new ();
+            row->ch = tgt->ch;
+            row->lun = tgt->lun;
+            row->blk = tgt->blk;
+            row->pg = i;
+            row->tstart = tstart;
+            row->tend = tend;
+            row->ulat = tend - tstart;
+            row->type = 'r';
+            row->failed = failed;
+            row->datacmp = cmp;
+            row->size = node->wl->geo.vpg_nbytes;
+            fox_output_append(row, node->nid);
+        }
 
         if (node->wl->w_factor == 0) {
             node->stats.pgs_done++;
@@ -122,11 +161,11 @@ FAILED:
     return 0;
 }
 
-static int fox_erase_blk (NVM_VBLK vblk, struct fox_node *node)
+static int fox_erase_blk (struct fox_tgt_blk *tgt, struct fox_node *node)
 {
     fox_timestamp_tmp_start(&node->stats);
 
-    if (nvm_vblk_erase (vblk))
+    if (nvm_vblk_erase (tgt->vblk))
         fox_set_stats (FOX_STATS_FAIL_E, &node->stats, 1);
 
     fox_timestamp_end(FOX_STATS_ERASE_T, &node->stats);
@@ -154,7 +193,7 @@ static int fox_erase_all_vblks (struct fox_node *node)
 
         fox_vblk_tgt(node, node->ch[ch_i],node->lun[lun_i],blk_i % blk_lun);
 
-        if (fox_erase_blk (node->vblk_tgt, node))
+        if (fox_erase_blk (&node->vblk_tgt, node))
             return 1;
     }
 
@@ -212,7 +251,7 @@ static int fox_iterator_prior (struct fox_rw_iterator *it, uint8_t type)
                                                         (*row == it->rows - 1));
 }
 
-static int fox_iterator_reset (struct fox_rw_iterator *it)
+static void fox_iterator_reset (struct fox_rw_iterator *it)
 {
     it->row_w = 0;
     it->row_r = 0;
@@ -266,7 +305,7 @@ void *fox_engine1 (void * arg)
                 npgs = (pgoff_w + node->wl->w_factor > node->npgs) ?
                                     node->npgs - pgoff_w : node->wl->w_factor;
 
-                if (fox_write_blk(node->vblk_tgt, node, &bufblk, npgs, pgoff_w))
+                if (fox_write_blk(&node->vblk_tgt,node,&bufblk,npgs,pgoff_w))
                     goto BREAK;
                 pgoff_w += npgs;
 
@@ -275,7 +314,7 @@ void *fox_engine1 (void * arg)
                     npgs = (pgoff_r + node->wl->r_factor > pgoff_w) ?
                                     pgoff_w - pgoff_r : node->wl->r_factor;
 
-                    if (fox_read_blk(node->vblk_tgt,node,&bufblk,npgs,pgoff_r))
+                    if (fox_read_blk(&node->vblk_tgt,node,&bufblk,npgs,pgoff_r))
                         goto BREAK;
 
                     aux_r += npgs;
@@ -287,7 +326,7 @@ void *fox_engine1 (void * arg)
 READ:
             /* 100 % reads */
             if (node->wl->w_factor == 0) {
-                if (fox_read_blk (node->vblk_tgt, node, &bufblk, node->npgs, 0))
+                if (fox_read_blk (&node->vblk_tgt,node,&bufblk,node->npgs,0))
                     goto BREAK;
             }
             fox_blkbuf_reset(node, &bufblk);
@@ -367,7 +406,7 @@ void *fox_engine2 (void * arg)
                 ch_i = it->col_w % node->nchs;
                 lun_i = it->col_w / node->nchs;
                 fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
-                if (fox_write_blk(node->vblk_tgt, node, &bufblk[it->col_w], 1,
+                if (fox_write_blk(&node->vblk_tgt, node, &bufblk[it->col_w], 1,
                                                                          pg_i))
                     goto BREAK;
                 if (!fox_iterator_next(it, FOX_WRITE)) {
@@ -403,7 +442,7 @@ void *fox_engine2 (void * arg)
                 lun_i = it->col_r / node->nchs;
 
                 fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
-                if (fox_read_blk(node->vblk_tgt, node, &bufblk[it->col_r], 1,
+                if (fox_read_blk(&node->vblk_tgt, node, &bufblk[it->col_r], 1,
                                                                          pg_i))
                     goto BREAK;
 
@@ -421,7 +460,7 @@ READ:
                     lun_i = it->col_r / node->nchs;
 
                     fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
-                    if (fox_read_blk(node->vblk_tgt, node, &bufblk[it->col_w],
+                    if (fox_read_blk(&node->vblk_tgt, node, &bufblk[it->col_w],
                                                                       1, pg_i))
                         goto BREAK;
 

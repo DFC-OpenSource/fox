@@ -79,9 +79,9 @@ int main (int argc, char **argv) {
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
 
-    if (argc != 24) {
+    if (argc != 26) {
         printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-                     "node 8 read 50 write 50 delay 800 compare 1 engine 2\n");
+             "node 8 read 50 write 50 delay 800 compare 1 output 1 engine 2\n");
         return -1;
     }
 
@@ -107,7 +107,8 @@ int main (int argc, char **argv) {
     wl->w_factor = atoi(argv[17]);
     wl->max_delay = atoi(argv[19]);
     wl->memcmp = atoi(argv[21]);
-    wl->engine = atoi(argv[23]);
+    wl->output = atoi(argv[23]);
+    wl->engine = atoi(argv[25]);
     wl->dev = nvm_dev_open(wl->devname);
     wl->geo = nvm_dev_attr_geo(wl->dev);
 
@@ -129,10 +130,15 @@ int main (int argc, char **argv) {
     if (fox_alloc_vblks(wl))
         goto FREE;
 
+    fox_output_init (wl->nthreads);
+
     fox_monitor (nodes);
 
     fox_merge_stats (nodes, gl_stats);
     fox_show_stats (wl, nodes);
+
+    fox_output_flush ();
+    fox_output_exit ();
 
     fox_free_vblks(wl);
     fox_exit_threads (nodes);

@@ -71,6 +71,7 @@ struct fox_workload {
     uint16_t         r_factor;
     uint32_t         max_delay;
     uint8_t          memcmp;
+    uint8_t          output;
     uint64_t         runtime; /* u-seconds */
     fengine_fn       *fengine_fn;
     NVM_DEV          dev;
@@ -82,8 +83,15 @@ struct fox_workload {
 };
 
 struct fox_blkbuf {
-    uint8_t *buf_w;
-    uint8_t *buf_r;
+    uint8_t     *buf_w;
+    uint8_t     *buf_r;
+};
+
+struct fox_tgt_blk {
+    NVM_VBLK    vblk;
+    uint16_t    ch;
+    uint16_t    lun;
+    uint32_t    blk;
 };
 
 struct fox_node {
@@ -99,8 +107,26 @@ struct fox_node {
     pthread_t           tid;
     struct fox_workload *wl;
     struct fox_stats    stats;
-    NVM_VBLK            vblk_tgt;
+    struct fox_tgt_blk  vblk_tgt;
     LIST_ENTRY(node)    entry;
+};
+
+struct fox_output_row {
+    uint64_t    seq;
+    uint64_t    node_seq;
+    uint16_t    tid;
+    uint16_t    ch;
+    uint16_t    lun;
+    uint32_t    blk;
+    uint32_t    pg;
+    uint64_t    tstart;
+    uint64_t    tend;
+    uint32_t    ulat;
+    char        type;
+    uint8_t     failed;
+    uint8_t     datacmp;
+    uint32_t    size;
+    TAILQ_ENTRY(fox_output_row) entry;
 };
 
 #define FOX_READ    0x1
@@ -154,8 +180,8 @@ void                 fox_set_stats (uint8_t, struct fox_stats *, int64_t);
 void                 fox_start_node (struct fox_node *);
 void                 fox_end_node (struct fox_node *);
 void                 fox_timestamp_start (struct fox_stats *);
-void                 fox_timestamp_tmp_start (struct fox_stats *);
-void                 fox_timestamp_end (uint8_t, struct fox_stats *);
+uint64_t             fox_timestamp_tmp_start (struct fox_stats *);
+uint64_t             fox_timestamp_end (uint8_t, struct fox_stats *);
 void                 fox_show_stats (struct fox_workload *, struct fox_node *);
 void                 fox_show_workload (struct fox_workload *);
 int                  fox_alloc_vblks (struct fox_workload *);
@@ -171,7 +197,12 @@ void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
 void                 fox_free_blkbuf (struct fox_blkbuf *, int);
 int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,
                                                            uint16_t, uint16_t);
-void                *fox_engine1 (void *);
-void                *fox_engine2 (void *);
+int                  fox_output_init (int);
+void                 fox_output_exit (void);
+void                 fox_output_append (struct fox_output_row *, int);
+void                 fox_output_flush (void);
+struct fox_output_row *fox_output_new (void);
+void                  *fox_engine1 (void *);
+void                  *fox_engine2 (void *);
 
 #endif /* FOX_H */

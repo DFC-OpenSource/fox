@@ -83,7 +83,7 @@ int fox_blkbuf_cmp (struct fox_node *node, struct fox_blkbuf *buf,
 
     if (memcmp (offw, offr, node->wl->geo.vpg_nbytes * npgs)) {
         fox_set_stats(FOX_STATS_FAIL_CMP, &node->stats, 1);
-        return -1;
+        return 1;
     }
 
     return 0;
