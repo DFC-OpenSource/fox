@@ -10,6 +10,7 @@
 #define SEC64 (1000000 & AND64)
 
 #define FOX_ENGINE_1  0x1 /* All sequential */
+#define FOX_ENGINE_2  0x2 /* All round-robin */
 
 enum {
     FOX_STATS_ERASE_T = 0x1,
@@ -99,7 +100,50 @@ struct fox_node {
     struct fox_workload *wl;
     struct fox_stats    stats;
     NVM_VBLK            vblk_tgt;
-    LIST_ENTRY(node)    entry;    
+    LIST_ENTRY(node)    entry;
+};
+
+#define FOX_READ    0x1
+#define FOX_WRITE   0x2
+
+/* A workload is a set of parameters that defines the experiment behavior.
+ * Check 'struct fox_workload'
+ *
+ * A node is a thread that carries a distribution and performs iterations.
+ *
+ * A distribution is a set of blocks distributed among the units of parallelism
+ * (channels and LUNs) assigned to a node.
+ *
+ * An iteration is a group of r/w operations in a given distribution.
+ * The iteration is finished when all the pages in the distribution are
+ * programmed. In a 100% read workload, the iteration finishes when all the
+ * pages have been read.
+ *
+ * A row is a group of pages where each page is located in a different unit
+ * of parallelism. Each row is composed by n pages, where n is the maximum
+ * available units given to a specific node.
+ *
+ * A column is the page offset within a row. For instance:
+ *
+ * (CH=2,LUN=2,BLK=nb,PG=np)
+ *
+ *             col      col      col      col
+ * row ->   (0,0,0,0)(0,1,0,0)(1,0,0,0)(1,1,0,0)
+ * row ->   (0,0,0,1)(0,1,0,1)(1,0,0,1)(1,1,0,1)
+ * row ->   (0,0,0,2)(0,1,0,2)(1,0,0,2)(1,1,0,2)
+ *                          ...
+ * row ->   (0,0,nb,np)(0,1,nb,np)(1,0,nb,np)(1,1,nb,np)
+ *
+ * This struct is used to keep the current read/write pointers in the iteration.
+ */
+struct fox_rw_iterator {
+    uint32_t    rows;       /* Total rows in the iteration */
+    uint32_t    cols;       /* Total columns in a row */
+    uint32_t    row_r;      /* Current row for read operation */
+    uint32_t    row_w;      /* Current row for write operation */
+    uint32_t    col_r;      /* Current page offset within the row for read */
+    uint32_t    col_w;      /* Current page offset within the row for write */
+    uint32_t    it_count;   /* Number of completed iterations */
 };
 
 struct fox_node     *fox_create_threads (struct fox_workload *);
@@ -124,9 +168,10 @@ void                 fox_exit_stats (struct fox_stats *);
 void                 fox_wait_for_ready (struct fox_workload *);
 int                  fox_alloc_blk_buf (struct fox_node *, struct fox_blkbuf *);
 void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
-void                 fox_free_blkbuf (struct fox_blkbuf *);
+void                 fox_free_blkbuf (struct fox_blkbuf *, int);
 int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,
                                                            uint16_t, uint16_t);
 void                *fox_engine1 (void *);
+void                *fox_engine2 (void *);
 
 #endif /* FOX_H */

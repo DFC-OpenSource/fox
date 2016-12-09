@@ -16,7 +16,8 @@ static void fox_fill_wb (uint8_t *wb, size_t sz)
 
     srand(time (NULL));
     for (i = 0; i < sz; i++) {
-        byte = rand() % 255;
+        if (i % 16 == 0)
+            byte = rand() % 255;
         memset (&wb[i], byte, 1);
     }
 }
@@ -53,10 +54,14 @@ void fox_blkbuf_reset (struct fox_node *node, struct fox_blkbuf *buf)
     memset (buf->buf_r, 0x0, node->npgs * node->wl->geo.vpg_nbytes);
 }
 
-void fox_free_blkbuf (struct fox_blkbuf *buf)
+void fox_free_blkbuf (struct fox_blkbuf *buf, int count)
 {
-    free (buf->buf_r);
-    free (buf->buf_w);
+    int i;
+
+    for (i = 0; i < count; i++) {
+        free (buf[i].buf_r);
+        free (buf[i].buf_w);
+    }
 }
 
 int fox_blkbuf_cmp (struct fox_node *node, struct fox_blkbuf *buf,

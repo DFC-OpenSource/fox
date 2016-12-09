@@ -11,7 +11,7 @@ static int fox_check_workload (struct fox_workload *wl)
 {
     if (wl->channels > wl->geo.nchannels ||
             wl->luns > wl->geo.nluns ||
-            wl->blks > wl->geo.nblocks - 6 ||
+            wl->blks > wl->geo.nblocks ||
             wl->pgs > wl->geo.npages ||
             wl->channels < 1 ||
             wl->luns < 1 ||
@@ -79,9 +79,9 @@ int main (int argc, char **argv) {
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
 
-    if (argc != 22) {
+    if (argc != 24) {
         printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-                              "node 8 read 50 write 50 delay 800 compare 1\n");
+                     "node 8 read 50 write 50 delay 800 compare 1 engine 2\n");
         return -1;
     }
 
@@ -90,11 +90,10 @@ int main (int argc, char **argv) {
 
     if (!gl_stats || !wl)
         goto ERR;
-    
+
     pthread_mutex_init (&wl->start_mut, NULL);
     pthread_cond_init (&wl->start_con, NULL);
 
-    wl->engine = FOX_ENGINE_1;
     wl->runtime = atoi(argv[3]);
     wl->devname = malloc(8);
     wl->devname[7] = '\0';
@@ -108,6 +107,7 @@ int main (int argc, char **argv) {
     wl->w_factor = atoi(argv[17]);
     wl->max_delay = atoi(argv[19]);
     wl->memcmp = atoi(argv[21]);
+    wl->engine = atoi(argv[23]);
     wl->dev = nvm_dev_open(wl->devname);
     wl->geo = nvm_dev_attr_geo(wl->dev);
 
@@ -137,7 +137,7 @@ int main (int argc, char **argv) {
     fox_free_vblks(wl);
     fox_exit_threads (nodes);
     fox_exit_stats (gl_stats);
-    
+
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);
     free (gl_stats);

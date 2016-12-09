@@ -60,7 +60,7 @@ void fox_set_stats (uint8_t type, struct fox_stats *st, int64_t val)
             break;
         case FOX_STATS_RW_SECT:
             st->rw_sect += (uint64_t) val;
-            break;            
+            break;
         case FOX_STATS_ERASE_T:
             st->erase_t += (uint64_t) val;
             break;
@@ -87,7 +87,7 @@ void fox_set_stats (uint8_t type, struct fox_stats *st, int64_t val)
             break;
         case FOX_STATS_BRW_SEC:
             st->brw_sec += (uint64_t) val;
-            break;            
+            break;
         case FOX_STATS_FAIL_CMP:
             st->fail_cmp += (uint32_t) val;
             break;
@@ -181,28 +181,28 @@ static void fox_show_progress (struct fox_node *node)
     fox_timestamp_end (FOX_STATS_RUNTIME, node[0].wl->stats);
 
     printf ("\r");
-    for (node_i = 0; node_i < node[0].wl->nthreads; node_i++) {     
-        
+    for (node_i = 0; node_i < node[0].wl->nthreads; node_i++) {
+
         n_prog = fox_get_progress(&node[node_i].stats);
         wl_prog += n_prog;
-        
+
         pthread_mutex_lock(&node[node_i].stats.s_mutex);
-        
+
         tot_sec += node[node_i].stats.rw_sect;
         totalb += node[node_i].stats.brw_sec;
         node[node_i].stats.rw_sect = 0;
         node[node_i].stats.brw_sec = 0;
-        
+
         pthread_mutex_unlock(&node[node_i].stats.s_mutex);
-        
+
         printf(" [%d:%d%%]", node[node_i].nid, n_prog);
-        
+
     }
     wl_prog = (uint16_t) ((double) wl_prog / (double) node[0].wl->nthreads);
 
     totalb = totalb / (long double) (1024 * 1024);
     tot_sec = (tot_sec / (long double) SEC64) / node[0].wl->nthreads;
-    
+
     th = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
 
     printf(" [%d%%|%.2Lf MB/s]", wl_prog, th);
@@ -240,17 +240,17 @@ void fox_monitor (struct fox_node *nodes)
             if (nodes[i].stats.flags & FOX_FLAG_READY)
                 ndone++;
         }
-    } while (ndone < nn);    
+    } while (ndone < nn);
 
     /* start all threads */
     wl->stats->flags |= FOX_FLAG_READY;
-    
-    pthread_mutex_lock (&wl->start_mut);    
-    pthread_cond_broadcast(&wl->start_con);    
+
+    pthread_mutex_lock (&wl->start_mut);
+    pthread_cond_broadcast(&wl->start_con);
     pthread_mutex_unlock (&wl->start_mut);
-    
-    fox_timestamp_start (wl->stats);    
-    
+
+    fox_timestamp_start (wl->stats);
+
     printf ("\n - Workload started.\n\n");
 
     /* show progress and wait until all threads are done */
@@ -285,13 +285,13 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
     int i;
 
     struct fox_stats *st = wl->stats;
-    
+
     for (i = 0; i < wl->nthreads; i++) {
         io_usec += node[i].stats.runtime;
-        totb += node[i].stats.bread + node[i].stats.bwritten;        
+        totb += node[i].stats.bread + node[i].stats.bwritten;
     }
 
-    tsec = st->runtime / (long double) SEC64;  
+    tsec = st->runtime / (long double) SEC64;
     io_sec = (io_usec / (long double) SEC64) / wl->nthreads;
 
     th = (io_sec) ? totb / io_sec : 0;
@@ -322,9 +322,9 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
 void fox_show_workload (struct fox_workload *wl)
 {
     char cmp;
-    
+
     cmp = (wl->memcmp) ? 'y' : 'n';
-    
+
     printf ("\n --- WORKLOAD ---\n\n");
     printf (" - Device       : %s\n", wl->devname);
     if (wl->runtime)
@@ -339,6 +339,6 @@ void fox_show_workload (struct fox_workload *wl)
     printf (" - Write factor : %d %%\n", wl->w_factor);
     printf (" - read factor  : %d %%\n", wl->r_factor);
     printf (" - Max I/O delay: %d u-sec\n", wl->max_delay);
-    printf (" - Engine       : 0x%d\n", wl->engine);    
+    printf (" - Engine       : 0x%d\n", wl->engine);
     printf (" - Read compare : %c\n", cmp);
 }

@@ -50,22 +50,22 @@ static int fox_write_blk (NVM_VBLK vblk, struct fox_node *node,
 
         buf_off = buf->buf_w + node->wl->geo.vpg_nbytes * i;
         fox_timestamp_tmp_start(&node->stats);
-        
+
         if (nvm_vblk_pwrite(vblk, buf_off, node->wl->geo.vpg_nbytes,
                                                  node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_W, &node->stats, 1);
             goto FAILED;
         }
-        
+
         fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
         fox_set_stats(FOX_STATS_BWRITTEN,&node->stats,node->wl->geo.vpg_nbytes);
-        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);   
-        
+        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);
+
 FAILED:
         fox_set_stats (FOX_STATS_PGS_W, &node->stats, 1);
         node->stats.pgs_done++;
-        
+
         if (fox_update_runtime(node)||(node->wl->stats->flags & FOX_FLAG_DONE))
             return 1;
     }
@@ -161,6 +161,76 @@ static int fox_erase_all_vblks (struct fox_node *node)
     return 0;
 }
 
+static struct fox_rw_iterator *fox_iterator_new (struct fox_node *node)
+{
+    struct fox_rw_iterator *it;
+
+    it = malloc (sizeof (struct fox_rw_iterator));
+    if (!it)
+        return NULL;
+    memset (it, 0, sizeof (struct fox_rw_iterator));
+
+    it->cols = node->nchs * node->nluns;
+    it->rows = node->nblks * node->npgs;
+
+    return it;
+}
+
+static void fox_iterator_free (struct fox_rw_iterator *it)
+{
+    free (it);
+}
+
+static int fox_iterator_next (struct fox_rw_iterator *it, uint8_t type)
+{
+    uint32_t *row, *col;
+
+    row = (type == FOX_READ) ? &it->row_r : &it->row_w;
+    col = (type == FOX_READ) ? &it->col_r : &it->col_w;
+
+    *col = (*col >= it->cols - 1) ? 0 : *col + 1;
+
+    if (!(*col))
+        *row = (*row >= it->rows - 1) ? 0 : *row + 1;
+
+   return !(type == FOX_WRITE && !(*col) && !(*row));
+}
+
+static int fox_iterator_prior (struct fox_rw_iterator *it, uint8_t type)
+{
+    uint32_t *row, *col;
+
+    row = (type == FOX_READ) ? &it->row_r : &it->row_w;
+    col = (type == FOX_READ) ? &it->col_r : &it->col_w;
+
+    *col = (*col == 0) ? it->cols - 1 : *col - 1;
+
+    if (*col == it->cols - 1)
+        *row = (*row == 0) ? it->rows - 1 : *row - 1;
+
+   return !(type == FOX_WRITE && (*col == it->cols - 1) &&
+                                                        (*row == it->rows - 1));
+}
+
+static int fox_iterator_reset (struct fox_rw_iterator *it)
+{
+    it->row_w = 0;
+    it->row_r = 0;
+    it->col_r = 0;
+    it->col_w = 0;
+}
+
+/* ENGINE 1: All sequential:
+ * (ch,lun,blk,pg)
+ * (0,0,0,0)
+ * (0,0,0,1)
+ * (0,0,0,2)
+ * (0,0,1,0)
+ * (0,0,1,1)
+ * (0,0,1,2)
+ * (0,1,0,0)
+ * (0,1,0,1) ...
+ */
 void *fox_engine1 (void * arg)
 {
     struct fox_node *node = (struct fox_node *) arg;
@@ -177,7 +247,7 @@ void *fox_engine1 (void * arg)
 
     if (fox_alloc_blk_buf (node, &bufblk))
         goto OUT;
-    
+
     fox_start_node (node);
 
     do {
@@ -235,8 +305,154 @@ BREAK:
     } while (1);
 
     fox_end_node (node);
-    fox_free_blkbuf (&bufblk);
+    fox_free_blkbuf (&bufblk, 1);
 
+OUT:
+    return NULL;
+}
+
+/* ENGINE 2: Channels, LUNs and blocks round-robin:
+ * (ch,lun,blk,pg)
+ * (0,0,0,0)
+ * (1,0,0,0)
+ * (2,0,0,0)
+ * (0,1,0,0)
+ * (1,1,0,0)
+ * (2,1,0,0)
+ * (0,0,0,1)
+ * (1,0,0,1) ...
+ *  */
+void *fox_engine2 (void * arg)
+{
+    struct fox_node *node = (struct fox_node *) arg;
+    uint8_t end;
+    int ncol, pgs_sblk, ch_i, lun_i, blk_i, pg_i, roff, woff, r_i,w_i;
+    struct fox_blkbuf *bufblk;
+    struct fox_rw_iterator *it;
+
+    node->stats.pgs_done = 0;
+
+    ncol = node->nluns * node->nchs;
+    pgs_sblk = ncol * node->npgs;
+
+    it = fox_iterator_new(node);
+    if (!it)
+        goto OUT;
+
+    bufblk = malloc (sizeof (struct fox_blkbuf) * node->nchs * node->nluns);
+    if (!bufblk)
+        goto ITERATOR;
+
+    for (blk_i = 0; blk_i < node->nchs * node->nluns; blk_i++) {
+        if (fox_alloc_blk_buf (node, &bufblk[blk_i])) {
+            fox_free_blkbuf(bufblk, blk_i);
+            goto BUFBLK;
+        }
+    }
+
+    fox_start_node (node);
+
+    do {
+        end = 0;
+        fox_iterator_reset(it);
+        do {
+            if (node->wl->w_factor == 0)
+                goto READ;
+
+            roff = 0;
+            woff = 0;
+            while (woff < node->wl->w_factor) {
+                pg_i = it->row_w % node->npgs;
+                blk_i = it->row_w / node->npgs;
+                ch_i = it->col_w % node->nchs;
+                lun_i = it->col_w / node->nchs;
+                fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
+                if (fox_write_blk(node->vblk_tgt, node, &bufblk[it->col_w], 1,
+                                                                         pg_i))
+                    goto BREAK;
+                if (!fox_iterator_next(it, FOX_WRITE)) {
+                    end++;
+                    break;
+                }
+                woff++;
+            }
+
+            if (end)
+                fox_iterator_prior(it, FOX_WRITE);
+
+            while (roff < node->wl->r_factor) {
+                w_i = (it->row_w * ncol) + it->col_w;
+                r_i = (it->row_r * ncol) + it->col_r;
+                if (r_i >= w_i) {
+                    do {
+                        fox_iterator_prior(it, FOX_READ);
+                        w_i = (it->row_w * ncol) + it->col_w;
+                        r_i = (it->row_r * ncol) + it->col_r;
+                    } while (r_i > 0 && r_i > w_i - pgs_sblk);
+                } else if (r_i < w_i - pgs_sblk) {
+                    do {
+                        fox_iterator_next(it, FOX_READ);
+                        w_i = (it->row_w * ncol) + it->col_w;
+                        r_i = (it->row_r * ncol) + it->col_r;
+                    } while (r_i < w_i - pgs_sblk);
+                }
+
+                pg_i = it->row_r % node->npgs;
+                blk_i = it->row_r / node->npgs;
+                ch_i = it->col_r % node->nchs;
+                lun_i = it->col_r / node->nchs;
+
+                fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
+                if (fox_read_blk(node->vblk_tgt, node, &bufblk[it->col_r], 1,
+                                                                         pg_i))
+                    goto BREAK;
+
+                fox_iterator_next(it, FOX_READ);
+                roff++;
+            }
+
+READ:
+            /* 100 % reads */
+            if (node->wl->w_factor == 0) {
+                do {
+                    pg_i = it->row_w % node->npgs;
+                    blk_i = it->row_w / node->npgs;
+                    ch_i = it->col_r % node->nchs;
+                    lun_i = it->col_r / node->nchs;
+
+                    fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
+                    if (fox_read_blk(node->vblk_tgt, node, &bufblk[it->col_w],
+                                                                      1, pg_i))
+                        goto BREAK;
+
+                    fox_iterator_next(it, FOX_READ);
+
+                    r_i = (it->row_r * ncol) + it->col_r;
+                    if (r_i >= pgs_sblk * node->nblks - 1)
+                        end++;
+
+                } while (!end);
+            }
+        } while (!end);
+
+BREAK:
+        if ((node->wl->stats->flags & FOX_FLAG_DONE) || !node->wl->runtime ||
+                                                   node->stats.progress >= 100)
+            break;
+
+        if (node->wl->w_factor != 0)
+            if (fox_erase_all_vblks (node))
+                break;
+
+    } while (1);
+
+    fox_end_node (node);
+    fox_free_blkbuf(bufblk, node->nchs * node->nluns);
+
+BUFBLK:
+    free (bufblk);
+ITERATOR:
+    fox_iterator_free(it);
 OUT:
     return NULL;
 }
