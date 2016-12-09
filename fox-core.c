@@ -130,15 +130,18 @@ int main (int argc, char **argv) {
     if (fox_alloc_vblks(wl))
         goto FREE;
 
-    fox_output_init (wl->nthreads);
+    if (wl->output)
+        fox_output_init (wl->nthreads);
 
     fox_monitor (nodes);
 
     fox_merge_stats (nodes, gl_stats);
     fox_show_stats (wl, nodes);
 
-    fox_output_flush ();
-    fox_output_exit ();
+    if (wl->output) {
+        fox_output_flush ();
+        fox_output_exit ();
+    }
 
     fox_free_vblks(wl);
     fox_exit_threads (nodes);
