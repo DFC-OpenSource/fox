@@ -415,8 +415,8 @@ READ:
             /* 100 % reads */
             if (node->wl->w_factor == 0) {
                 do {
-                    pg_i = it->row_w % node->npgs;
-                    blk_i = it->row_w / node->npgs;
+                    pg_i = it->row_r % node->npgs;
+                    blk_i = it->row_r / node->npgs;
                     ch_i = it->col_r % node->nchs;
                     lun_i = it->col_r / node->nchs;
 
