@@ -118,6 +118,9 @@ int main (int argc, char **argv) {
     fox_init_stats (gl_stats);
     wl->stats = gl_stats;
 
+    if (fox_output_init (wl))
+        goto FREE;
+
     fox_show_workload (wl);
     fox_setup_io_factor (wl);
 
@@ -130,18 +133,15 @@ int main (int argc, char **argv) {
     if (fox_alloc_vblks(wl))
         goto FREE;
 
-    if (wl->output)
-        fox_output_init (wl->nthreads);
-
     fox_monitor (nodes);
 
     fox_merge_stats (nodes, gl_stats);
     fox_show_stats (wl, nodes);
 
-    if (wl->output) {
+    if (wl->output)
         fox_output_flush ();
-        fox_output_exit ();
-    }
+
+    fox_output_exit ();
 
     fox_free_vblks(wl);
     fox_exit_threads (nodes);

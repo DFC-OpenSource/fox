@@ -197,10 +197,11 @@ void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
 void                 fox_free_blkbuf (struct fox_blkbuf *, int);
 int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,
                                                            uint16_t, uint16_t);
-int                  fox_output_init (int);
+int                  fox_output_init (struct fox_workload *);
 void                 fox_output_exit (void);
 void                 fox_output_append (struct fox_output_row *, int);
 void                 fox_output_flush (void);
+void                 fox_print (char *);
 struct fox_output_row *fox_output_new (void);
 void                  *fox_engine1 (void *);
 void                  *fox_engine2 (void *);

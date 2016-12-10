@@ -5,6 +5,9 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "fox.h"
 
@@ -15,23 +18,41 @@ static uint64_t sequence;
 static uint64_t *node_seq;
 static uint64_t usec;
 
-int fox_output_init (int node_count)
+int fox_output_init (struct fox_workload *wl)
 {
     struct timeval tv;
+    FILE *fp;
+    char filename[40];
+    struct stat st = {0};
 
-    node_seq = malloc (sizeof(uint64_t) * node_count);
+    if (stat("output", &st) == -1)
+        mkdir("output", S_IRWXO);
+
+    gettimeofday(&tv, NULL);
+    usec = tv.tv_sec * SEC64;
+    usec += tv.tv_usec;
+
+    if (wl->output) {
+        sprintf (filename, "output/%lu_fox_io.csv", usec);
+        fp = fopen(filename, "a");
+        if (!fp)
+            return -1;
+
+        fprintf (fp, "sequence;node_sequence;node_id;channel;lun;block;page;"
+                       "start;end;latency;type;is_failed;read_memcmp;bytes\n");
+
+        fclose(fp);
+    }
+
+    node_seq = malloc (sizeof(uint64_t) * wl->nthreads);
     if (!node_seq)
         return -1;
-    memset (node_seq, 0, sizeof(uint64_t) * node_count);
+    memset (node_seq, 0, sizeof(uint64_t) * wl->nthreads);
 
     TAILQ_INIT (&out_head);
     pthread_mutex_init (&out_mutex, NULL);
     pthread_mutex_init (&file_mutex, NULL);
     sequence = 0;
-
-    gettimeofday(&tv, NULL);
-    usec = tv.tv_sec * SEC64;
-    usec += tv.tv_usec;
 
     return 0;
 }
@@ -67,15 +88,32 @@ void fox_output_append (struct fox_output_row *row, int node_id)
     pthread_mutex_unlock (&out_mutex);
 }
 
+void fox_print (char *line)
+{
+    FILE *fp;
+    char filename[42];
+
+    sprintf (filename, "output/%lu_fox_meta.csv", usec);
+    fp = fopen(filename, "a");
+    if (!fp)
+        return;
+
+    fputs (line, fp);
+    fputs (line, stdout);
+
+    fclose(fp);
+}
+
 void fox_output_flush (void)
 {
     FILE *fp;
     char filename[40];
     struct fox_output_row *row;
+    char tstart[21], tend[21];
 
     pthread_mutex_lock (&file_mutex);
 
-    sprintf (filename, "%lu_fox_io.csv", usec);
+    sprintf (filename, "output/%lu_fox_io.csv", usec);
     fp = fopen(filename, "a");
     if (!fp)
         goto UNLOCK_FILE;
@@ -91,6 +129,11 @@ void fox_output_flush (void)
 
         pthread_mutex_unlock (&out_mutex);
 
+        sprintf (tstart, "%lu", row->tstart);
+        sprintf (tend, "%lu", row->tend);
+        memmove (tstart, tstart+4, 17);
+        memmove (tend, tend+4, 17);
+
         if(fprintf (fp,
                 "%lu;"
                 "%lu;"
@@ -99,8 +142,8 @@ void fox_output_flush (void)
                 "%d;"
                 "%d;"
                 "%d;"
-                "%lu;"
-                "%lu;"
+                "%s;"
+                "%s;"
                 "%d;"
                 "%c;"
                 "%d;"
@@ -113,8 +156,8 @@ void fox_output_flush (void)
                 row->lun,
                 row->blk,
                 row->pg,
-                row->tstart,
-                row->tend,
+                tstart,
+                tend,
                 row->ulat,
                 row->type,
                 row->failed,
