@@ -138,8 +138,10 @@ int main (int argc, char **argv) {
     fox_merge_stats (nodes, gl_stats);
     fox_show_stats (wl, nodes);
 
-    if (wl->output)
+    if (wl->output) {
         fox_output_flush ();
+        fox_output_flush_rt();
+    }
 
     fox_output_exit ();
 

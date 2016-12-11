@@ -65,6 +65,7 @@ static int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
         fox_set_stats(FOX_STATS_BWRITTEN,&node->stats,node->wl->geo.vpg_nbytes);
         fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);
+        fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
 
 FAILED:
         fox_set_stats (FOX_STATS_PGS_W, &node->stats, 1);
@@ -126,6 +127,7 @@ static int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
 
         fox_set_stats (FOX_STATS_BREAD, &node->stats, node->wl->geo.vpg_nbytes);
         fox_set_stats (FOX_STATS_BRW_SEC,&node->stats,node->wl->geo.vpg_nbytes);
+        fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
 
 FAILED:
         fox_set_stats (FOX_STATS_PGS_R, &node->stats, 1);

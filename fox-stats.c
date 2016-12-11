@@ -88,6 +88,9 @@ void fox_set_stats (uint8_t type, struct fox_stats *st, int64_t val)
         case FOX_STATS_BRW_SEC:
             st->brw_sec += (uint64_t) val;
             break;
+        case FOX_STATS_IOPS:
+            st->iops += (uint32_t) val;
+            break;
         case FOX_STATS_FAIL_CMP:
             st->fail_cmp += (uint32_t) val;
             break;
@@ -183,11 +186,22 @@ void fox_merge_stats (struct fox_node *nodes, struct fox_stats *st)
 
 static void fox_show_progress (struct fox_node *node)
 {
-    int node_i;
+    int node_i, i;
     uint16_t n_prog, wl_prog = 0;
-    long double tot_sec = 0, totalb = 0, th;
+    long double tot_sec = 0, totalb = 0;
+    uint64_t usec, io_count = 0;
+    struct fox_output_row_rt **rt;
 
-    fox_timestamp_end (FOX_STATS_RUNTIME, node[0].wl->stats);
+    usec = fox_timestamp_end (FOX_STATS_RUNTIME, node[0].wl->stats);
+
+    if (node->wl->output) {
+        rt = malloc (sizeof(void *) * node->wl->nthreads);
+        if (!rt)
+            return;
+
+        for (i = 0; i < node->wl->nthreads + 1; i++)
+            rt[i] = fox_output_new_rt();
+    }
 
     printf ("\r");
     for (node_i = 0; node_i < node[0].wl->nthreads; node_i++) {
@@ -197,10 +211,26 @@ static void fox_show_progress (struct fox_node *node)
 
         pthread_mutex_lock(&node[node_i].stats.s_mutex);
 
+        rt[node_i + 1]->thpt =
+            (node[node_i].stats.brw_sec == 0 || node[node_i].stats.rw_sect == 0)
+                ? 0 : (node[node_i].stats.brw_sec / (long double) (1024 * 1024))
+                / (node[node_i].stats.rw_sect / (long double) SEC64);
+
+        rt[node_i + 1]->iops =
+            (node[node_i].stats.iops == 0 || node[node_i].stats.rw_sect == 0) ?
+                0 : ((long double) node[node_i].stats.iops) /
+                (node[node_i].stats.rw_sect / (long double) SEC64);
+
+        rt[node_i + 1]->timestp = usec;
+
+        fox_output_append_rt (rt[node_i + 1], node[node_i].nid + 1);
+
         tot_sec += node[node_i].stats.rw_sect;
         totalb += node[node_i].stats.brw_sec;
+        io_count += node[node_i].stats.iops;
         node[node_i].stats.rw_sect = 0;
         node[node_i].stats.brw_sec = 0;
+        node[node_i].stats.iops = 0;
 
         pthread_mutex_unlock(&node[node_i].stats.s_mutex);
 
@@ -212,9 +242,13 @@ static void fox_show_progress (struct fox_node *node)
     totalb = totalb / (long double) (1024 * 1024);
     tot_sec = (tot_sec / (long double) SEC64) / node[0].wl->nthreads;
 
-    th = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
+    rt[0]->thpt = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
+    rt[0]->iops = (io_count == 0 || tot_sec == 0) ?
+                                          0 : (long double) io_count / tot_sec;
+    rt[0]->timestp = usec;
+    fox_output_append_rt (rt[0], 0);
 
-    printf(" [%d%%|%.2Lf MB/s]", wl_prog, th);
+    printf(" [%d%%|%.2Lf MB/s|%.1Lf]", wl_prog, rt[0]->thpt, rt[0]->iops);
     fflush(stdout);
 }
 
@@ -344,7 +378,7 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
     fox_print (line);
     sprintf (line, " - Failed erases : %d\n\n", st->fail_e);
     fox_print (line);
-    
+
     printf (" - Generating files under ./output ...\n\n");
 }
 

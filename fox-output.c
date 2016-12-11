@@ -12,6 +12,7 @@
 #include "fox.h"
 
 TAILQ_HEAD(out_list,fox_output_row) out_head = TAILQ_HEAD_INITIALIZER(out_head);
+TAILQ_HEAD(rt_list,fox_output_row_rt) rt_head = TAILQ_HEAD_INITIALIZER(rt_head);
 static pthread_mutex_t out_mutex;
 static pthread_mutex_t file_mutex;
 static uint64_t sequence;
@@ -42,6 +43,15 @@ int fox_output_init (struct fox_workload *wl)
                        "start;end;latency;type;is_failed;read_memcmp;bytes\n");
 
         fclose(fp);
+
+        sprintf (filename, "output/%lu_fox_rt.csv", usec);
+        fp = fopen(filename, "a");
+        if (!fp)
+            return -1;
+
+        fprintf (fp, "timestamp;node_id;throughput(mb/s);iops\n");
+
+        fclose(fp);
     }
 
     node_seq = malloc (sizeof(uint64_t) * wl->nthreads);
@@ -50,6 +60,7 @@ int fox_output_init (struct fox_workload *wl)
     memset (node_seq, 0, sizeof(uint64_t) * wl->nthreads);
 
     TAILQ_INIT (&out_head);
+    TAILQ_INIT (&rt_head);
     pthread_mutex_init (&out_mutex, NULL);
     pthread_mutex_init (&file_mutex, NULL);
     sequence = 0;
@@ -73,6 +84,15 @@ struct fox_output_row *fox_output_new (void)
     return row;
 }
 
+struct fox_output_row_rt *fox_output_new_rt (void)
+{
+    struct fox_output_row_rt *row;
+
+    row = malloc (sizeof(struct fox_output_row_rt));
+
+    return row;
+}
+
 void fox_output_append (struct fox_output_row *row, int node_id)
 {
     row->tid = node_id;
@@ -86,6 +106,13 @@ void fox_output_append (struct fox_output_row *row, int node_id)
     TAILQ_INSERT_TAIL (&out_head, row, entry);
 
     pthread_mutex_unlock (&out_mutex);
+}
+
+void fox_output_append_rt (struct fox_output_row_rt *row, uint16_t nid)
+{
+    row->nid = nid;
+
+    TAILQ_INSERT_TAIL (&rt_head, row, entry);
 }
 
 void fox_print (char *line)
@@ -175,4 +202,46 @@ CLOSE_FILE:
     fclose(fp);
 UNLOCK_FILE:
     pthread_mutex_unlock (&file_mutex);
+}
+
+void fox_output_flush_rt (void)
+{
+    FILE *fp;
+    char filename[40];
+    struct fox_output_row_rt *row;
+    char ts[21];
+
+    sprintf (filename, "output/%lu_fox_rt.csv", usec);
+    fp = fopen(filename, "a");
+    if (!fp)
+        return;
+
+    while (!TAILQ_EMPTY (&rt_head)) {
+
+        row = TAILQ_FIRST (&rt_head);
+        if (!row)
+            goto CLOSE_FILE;
+
+        TAILQ_REMOVE (&rt_head, row, entry);
+
+        sprintf (ts, "%lu", row->timestp);
+        memmove (ts, ts+4, 17);
+
+        if(fprintf (fp,
+                "%s;"
+                "%d;"
+                "%.4Lf;"
+                "%.2Lf\n",
+                ts,
+                row->nid,
+                row->thpt,
+                row->iops) < 0) {
+            printf (" [fox-output: ERROR. Not possible to flush results.]\n");
+            goto CLOSE_FILE;
+        }
+        free (row);
+    }
+
+CLOSE_FILE:
+    fclose(fp);
 }

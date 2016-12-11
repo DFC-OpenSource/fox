@@ -24,6 +24,7 @@ enum {
     FOX_STATS_BREAD,
     FOX_STATS_BWRITTEN,
     FOX_STATS_BRW_SEC,
+    FOX_STATS_IOPS,
     FOX_STATS_FAIL_CMP,
     FOX_STATS_FAIL_E,
     FOX_STATS_FAIL_R,
@@ -49,6 +50,7 @@ struct fox_stats {
     uint64_t        bread;
     uint64_t        bwritten;
     uint64_t        brw_sec; /* transferred bytes in the last second */
+    uint32_t        iops;
     uint16_t        progress;
     uint32_t        pgs_done;
     uint32_t        fail_cmp;
@@ -108,7 +110,16 @@ struct fox_node {
     struct fox_workload *wl;
     struct fox_stats    stats;
     struct fox_tgt_blk  vblk_tgt;
-    LIST_ENTRY(node)    entry;
+    LIST_ENTRY(fox_node) entry;
+};
+
+struct fox_output_row_rt {
+    uint64_t    timestp;
+    uint16_t    nid;
+    long double thpt;
+    long double iops;
+    struct fox_stats                stats;
+    TAILQ_ENTRY(fox_output_row_rt)  entry;
 };
 
 struct fox_output_row {
@@ -200,10 +211,13 @@ int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,
 int                  fox_output_init (struct fox_workload *);
 void                 fox_output_exit (void);
 void                 fox_output_append (struct fox_output_row *, int);
+void                 fox_output_append_rt(struct fox_output_row_rt *, uint16_t);
 void                 fox_output_flush (void);
+void                 fox_output_flush_rt (void);
 void                 fox_print (char *);
-struct fox_output_row *fox_output_new (void);
-void                  *fox_engine1 (void *);
-void                  *fox_engine2 (void *);
+struct fox_output_row       *fox_output_new (void);
+struct fox_output_row_rt    *fox_output_new_rt (void);
+void                        *fox_engine1 (void *);
+void                        *fox_engine2 (void *);
 
 #endif /* FOX_H */
