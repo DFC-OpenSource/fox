@@ -188,7 +188,7 @@ static void fox_show_progress (struct fox_node *node)
 {
     int node_i, i;
     uint16_t n_prog, wl_prog = 0;
-    long double tot_sec = 0, totalb = 0;
+    long double tot_sec = 0, totalb = 0, th, iops;
     uint64_t usec, io_count = 0;
     struct fox_output_row_rt **rt;
 
@@ -211,19 +211,21 @@ static void fox_show_progress (struct fox_node *node)
 
         pthread_mutex_lock(&node[node_i].stats.s_mutex);
 
-        rt[node_i + 1]->thpt =
-            (node[node_i].stats.brw_sec == 0 || node[node_i].stats.rw_sect == 0)
-                ? 0 : (node[node_i].stats.brw_sec / (long double) (1024 * 1024))
+        if (node->wl->output) {
+            rt[node_i + 1]->thpt = (node[node_i].stats.brw_sec == 0 ||
+                node[node_i].stats.rw_sect == 0) ? 0 :
+                (node[node_i].stats.brw_sec / (long double) (1024 * 1024))
                 / (node[node_i].stats.rw_sect / (long double) SEC64);
 
-        rt[node_i + 1]->iops =
-            (node[node_i].stats.iops == 0 || node[node_i].stats.rw_sect == 0) ?
-                0 : ((long double) node[node_i].stats.iops) /
+            rt[node_i + 1]->iops = (node[node_i].stats.iops == 0 ||
+                node[node_i].stats.rw_sect == 0) ? 0 :
+                ((long double) node[node_i].stats.iops) /
                 (node[node_i].stats.rw_sect / (long double) SEC64);
 
-        rt[node_i + 1]->timestp = usec;
+            rt[node_i + 1]->timestp = usec;
 
-        fox_output_append_rt (rt[node_i + 1], node[node_i].nid + 1);
+            fox_output_append_rt (rt[node_i + 1], node[node_i].nid + 1);
+        }
 
         tot_sec += node[node_i].stats.rw_sect;
         totalb += node[node_i].stats.brw_sec;
@@ -242,13 +244,18 @@ static void fox_show_progress (struct fox_node *node)
     totalb = totalb / (long double) (1024 * 1024);
     tot_sec = (tot_sec / (long double) SEC64) / node[0].wl->nthreads;
 
-    rt[0]->thpt = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
-    rt[0]->iops = (io_count == 0 || tot_sec == 0) ?
+    th = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
+    iops = (io_count == 0 || tot_sec == 0) ?
                                           0 : (long double) io_count / tot_sec;
-    rt[0]->timestp = usec;
-    fox_output_append_rt (rt[0], 0);
 
-    printf(" [%d%%|%.2Lf MB/s|%.1Lf]", wl_prog, rt[0]->thpt, rt[0]->iops);
+    if (node->wl->output) {
+        rt[0]->thpt = th;
+        rt[0]->iops = iops;
+        rt[0]->timestp = usec;
+        fox_output_append_rt (rt[0], 0);
+    }
+
+    printf(" [%d%%|%.2Lf MB/s|%.1Lf]", wl_prog, th, iops);
     fflush(stdout);
 }
 
