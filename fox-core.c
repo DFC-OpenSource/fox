@@ -79,9 +79,9 @@ int main (int argc, char **argv) {
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
 
-    if (argc != 22) {
+    if (argc != 26) {
         printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-                              "node 8 read 50 write 50 delay 800 compare 1\n");
+             "node 8 read 50 write 50 delay 800 compare 1 output 1 engine 2\n");
         return -1;
     }
 
@@ -91,7 +91,9 @@ int main (int argc, char **argv) {
     if (!gl_stats || !wl)
         goto ERR;
 
-    wl->engine = FOX_ENGINE_1;
+    pthread_mutex_init (&wl->start_mut, NULL);
+    pthread_cond_init (&wl->start_con, NULL);
+
     wl->runtime = atoi(argv[3]);
     wl->devname = malloc(8);
     wl->devname[7] = '\0';
@@ -105,6 +107,8 @@ int main (int argc, char **argv) {
     wl->w_factor = atoi(argv[17]);
     wl->max_delay = atoi(argv[19]);
     wl->memcmp = atoi(argv[21]);
+    wl->output = atoi(argv[23]);
+    wl->engine = atoi(argv[25]);
     wl->dev = nvm_dev_open(wl->devname);
     wl->geo = nvm_dev_attr_geo(wl->dev);
 
@@ -113,6 +117,9 @@ int main (int argc, char **argv) {
 
     fox_init_stats (gl_stats);
     wl->stats = gl_stats;
+
+    if (fox_output_init (wl))
+        goto FREE;
 
     fox_show_workload (wl);
     fox_setup_io_factor (wl);
@@ -129,11 +136,21 @@ int main (int argc, char **argv) {
     fox_monitor (nodes);
 
     fox_merge_stats (nodes, gl_stats);
-    fox_show_stats (wl);
+    fox_show_stats (wl, nodes);
+
+    if (wl->output) {
+        fox_output_flush ();
+        fox_output_flush_rt();
+    }
+
+    fox_output_exit ();
 
     fox_free_vblks(wl);
     fox_exit_threads (nodes);
     fox_exit_stats (gl_stats);
+
+    pthread_mutex_destroy (&wl->start_mut);
+    pthread_cond_destroy (&wl->start_con);
     free (gl_stats);
     free (wl);
 
@@ -142,6 +159,8 @@ int main (int argc, char **argv) {
 GEO:
     printf ("Workload not accepted.\n");
 FREE:
+    pthread_mutex_destroy (&wl->start_mut);
+    pthread_cond_destroy (&wl->start_con);
     free (gl_stats);
     free (wl);
 ERR:

@@ -21,7 +21,10 @@ int fox_vblk_tgt (struct fox_node *node, uint16_t chid, uint16_t lunid,
     /* TODO: bitmap of busy blocks
              set node->vblk_tgt as idle and boff as busy */
 
-    node->vblk_tgt = wl->vblks[boff];
+    node->vblk_tgt.vblk = wl->vblks[boff];
+    node->vblk_tgt.ch = chid;
+    node->vblk_tgt.lun = lunid;
+    node->vblk_tgt.blk = blkid;
 
     return 0;
 }
@@ -37,9 +40,13 @@ static int fox_write_vblk (NVM_VBLK vblk, struct fox_workload *wl)
         buf_off = buf + wl->geo.vpg_nbytes * i;
 
         if (nvm_vblk_pwrite(vblk, buf_off, wl->geo.vpg_nbytes,
-                                                       wl->geo.vpg_nbytes * i))
+                                                       wl->geo.vpg_nbytes * i)){
             printf ("WARNING: error when writing to vblk page.\n");
+            return -1;
+        }
     }
+
+    return 0;
 }
 
 int fox_alloc_vblks (struct fox_workload *wl)
