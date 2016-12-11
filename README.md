@@ -59,10 +59,10 @@ If 1, after every read operation, a comparison between the previous written and 
 #output
 If 0, no file is created
 If 1, files in .csv format are created under ./output folder. Each file contains:
-  - <timestamp>_fox_meta.csv -> Metadata including the workload parameters and the final results
-  - <timestamp>_fox_io.csv -> Per IO information. The .csv is fields:
+  - timestamp_fox_meta.csv -> Metadata including the workload parameters and the final results
+  - timestamp_fox_io.csv -> Per IO information. The .csv is fields:
      sequence;node_sequence;node_id;channel;lun;block;page;start;end;latency;type;is_failed;read_memcmp;bytes
-  - <timestamp>_fox_rt.csv -> Per thread realtime information (throughtput and IOPS). There is an entry each half second.
+  - timestamp_fox_rt.csv -> Per thread realtime information (throughtput and IOPS). There is an entry each half second.
   
 #engine
 It is current implemented 2 IO engines in fox:
@@ -71,8 +71,8 @@ It is current implemented 2 IO engines in fox:
    IOs are submitted from page 0 to page n sequentially within a block and LUNS/channels are picked sequentially within the address space given to a specific thread.
    
  - Engine 2: All round-robin. (recommended for performance)
-   IOs are submitted as round-robin in the columns, following this rules:   
-   
+   IOs are submitted as round-robin in the columns, following this rules:   
+``` 
     -> A workload is a set of parameters that defines the experiment behavior. Check 'struct fox_workload'.
  
     -> A node is a thread that carries a distribution and performs iterations.
@@ -98,8 +98,8 @@ It is current implemented 2 IO engines in fox:
   row ->   (0,0,0,1)(0,1,0,1)(1,0,0,1)(1,1,0,1)
   row ->   (0,0,0,2)(0,1,0,2)(1,0,0,2)(1,1,0,2)
                            ...
-  row ->   (0,0,nb,np)(0,1,nb,np)(1,0,nb,np)(1,1,nb,np)
-
+  row ->   (0,0,nb,np)(0,1,nb,np)(1,0,nb,np)(1,1,nb,np)
+```
 #Statistics:
 In the end you should get a screen like this (included in the meta CSV output file):
 ```
