@@ -50,20 +50,6 @@ void fox_wait_for_ready (struct fox_workload *wl)
     pthread_mutex_unlock(&wl->start_mut);
 }
 
-static void fox_set_engine (struct fox_workload *wl)
-{
-    switch (wl->engine) {
-        case FOX_ENGINE_1:
-            wl->fengine_fn = fox_engine1;
-            break;
-        case FOX_ENGINE_2:
-            wl->fengine_fn = fox_engine2;
-            break;
-        default:
-            printf("thread: Engine not found.\n");
-    }
-}
-
 static int fox_config_ch (struct fox_node *node)
 {
     int ch_th, mod_ch, i, add;
@@ -177,6 +163,20 @@ static void fox_show_geo_dist (struct fox_node *node)
     printf ("\n");
 }
 
+static void *fox_thread_node (void * arg)
+{
+    int ret;
+    struct fox_node *node = (struct fox_node *) arg;
+
+    ret = node->engine->start(node);
+    if (!ret)
+        node->engine->exit(node);
+    else
+        printf ("thread: Thread %d has failed.\n", node->nid);
+
+    return NULL;
+}
+
 struct fox_node *fox_create_threads (struct fox_workload *wl)
 {
     int i;
@@ -194,10 +194,6 @@ struct fox_node *fox_create_threads (struct fox_workload *wl)
         printf ("thread: Memory allocation failed.\n");
         goto ERR;
     }
-
-    fox_set_engine (wl);
-    if (!wl->fengine_fn)
-        goto ERR;
 
     for (i = 0; i < wl->nthreads; i++) {
         node[i].wl = wl;
@@ -225,7 +221,9 @@ struct fox_node *fox_create_threads (struct fox_workload *wl)
     fox_show_geo_dist (node);
 
     for (i = 0; i < wl->nthreads; i++) {
-        if(pthread_create (&node[i].tid, NULL, wl->fengine_fn, &node[i]))
+        node[i].engine = wl->engine;
+
+        if(pthread_create (&node[i].tid, NULL, fox_thread_node, &node[i]))
             printf("thread: Failed to start. id: %d\n", i);
     }
 

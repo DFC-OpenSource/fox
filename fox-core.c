@@ -32,9 +32,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/queue.h>
 #include "fox.h"
 
 LIST_HEAD(node_list, fox_node) node_head = LIST_HEAD_INITIALIZER(node_head);
+LIST_HEAD(eng_list, fox_engine) eng_head = LIST_HEAD_INITIALIZER(eng_head);
 
 static int fox_check_workload (struct fox_workload *wl)
 {
@@ -103,6 +105,34 @@ static void fox_setup_delay (struct fox_node *nodes)
 */
 }
 
+int fox_engine_register (struct fox_engine *eng)
+{
+    if (!eng)
+        return -1;
+
+    LIST_INSERT_HEAD(&eng_head, eng, entry);
+    return 0;
+}
+
+struct fox_engine *fox_get_engine(uint16_t id)
+{
+    struct fox_engine *eng;
+    LIST_FOREACH(eng, &eng_head, entry){
+        if(eng->id == id)
+            return eng;
+    }
+
+    return NULL;
+}
+
+static int fox_init_engs (struct fox_workload *wl)
+{
+    if (foxeng_seq_init(wl) || foxeng_rr_init(wl))
+        return -1;
+
+    return 0;
+}
+
 int main (int argc, char **argv) {
     struct fox_workload *wl;
     struct fox_node *nodes;
@@ -113,6 +143,8 @@ int main (int argc, char **argv) {
              "node 8 read 50 write 50 delay 800 compare 1 output 1 engine 2\n");
         return -1;
     }
+
+    LIST_INIT(&eng_head);
 
     gl_stats = malloc (sizeof (struct fox_stats));
     wl = malloc (sizeof (struct fox_workload));
@@ -137,9 +169,16 @@ int main (int argc, char **argv) {
     wl->max_delay = atoi(argv[19]);
     wl->memcmp = atoi(argv[21]);
     wl->output = atoi(argv[23]);
-    wl->engine = atoi(argv[25]);
     wl->dev = nvm_dev_open(wl->devname);
     wl->geo = nvm_dev_attr_geo(wl->dev);
+
+    fox_init_engs(wl);
+
+    wl->engine = fox_get_engine(atoi(argv[25]));
+    if (!wl->engine) {
+        printf("Engine not found.\n");
+        goto ERR;
+    }
 
     if (fox_check_workload(wl))
         goto GEO;

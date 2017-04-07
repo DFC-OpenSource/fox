@@ -63,7 +63,18 @@ enum {
 #define FOX_FLAG_READY (1 << 0)
 #define FOX_FLAG_DONE  (1 << 1)
 
-typedef void *(fengine_fn)(void *);
+struct fox_node;
+
+typedef int  (fengine_start)(struct fox_node *);
+typedef void (fengine_exit)(struct fox_node *);
+
+struct fox_engine {
+    uint16_t                id;
+    char                    *name;
+    fengine_start           *start;
+    fengine_exit            *exit;
+    LIST_ENTRY(fox_engine)  entry;
+};
 
 struct fox_stats {
     struct timeval  tval;
@@ -91,26 +102,25 @@ struct fox_stats {
 };
 
 struct fox_workload {
-    char             *devname;
-    uint8_t          engine;
-    uint8_t          channels;
-    uint8_t          luns;
-    uint32_t         blks;
-    uint32_t         pgs;
-    uint8_t          nthreads;
-    uint16_t         w_factor;
-    uint16_t         r_factor;
-    uint32_t         max_delay;
-    uint8_t          memcmp;
-    uint8_t          output;
-    uint64_t         runtime; /* u-seconds */
-    fengine_fn       *fengine_fn;
-    NVM_DEV          dev;
-    NVM_GEO          geo;
-    NVM_VBLK         *vblks;
-    struct fox_stats *stats;
-    pthread_mutex_t  start_mut;
-    pthread_cond_t   start_con;
+    char                *devname;
+    uint8_t             channels;
+    uint8_t             luns;
+    uint32_t            blks;
+    uint32_t            pgs;
+    uint8_t             nthreads;
+    uint16_t            w_factor;
+    uint16_t            r_factor;
+    uint32_t            max_delay;
+    uint8_t             memcmp;
+    uint8_t             output;
+    uint64_t            runtime; /* u-seconds */
+    struct fox_engine   *engine;
+    NVM_DEV             dev;
+    NVM_GEO             geo;
+    NVM_VBLK            *vblks;
+    struct fox_stats    *stats;
+    pthread_mutex_t     start_mut;
+    pthread_cond_t      start_con;
 };
 
 struct fox_blkbuf {
@@ -139,6 +149,7 @@ struct fox_node {
     struct fox_workload *wl;
     struct fox_stats    stats;
     struct fox_tgt_blk  vblk_tgt;
+    struct fox_engine   *engine;
     LIST_ENTRY(fox_node) entry;
 };
 
@@ -212,6 +223,8 @@ struct fox_rw_iterator {
     uint32_t    it_count;   /* Number of completed iterations */
 };
 
+int                  fox_engine_register (struct fox_engine *);
+struct fox_engine   *fox_get_engine(uint16_t);
 struct fox_node     *fox_create_threads (struct fox_workload *);
 void                 fox_exit_threads (struct fox_node *);
 void                 fox_merge_stats (struct fox_node *, struct fox_stats *);
@@ -237,6 +250,8 @@ void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
 void                 fox_free_blkbuf (struct fox_blkbuf *, int);
 int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,
                                                            uint16_t, uint16_t);
+
+/* fox-output */
 int                  fox_output_init (struct fox_workload *);
 void                 fox_output_exit (void);
 void                 fox_output_append (struct fox_output_row *, int);
@@ -246,7 +261,24 @@ void                 fox_output_flush_rt (void);
 void                 fox_print (char *);
 struct fox_output_row       *fox_output_new (void);
 struct fox_output_row_rt    *fox_output_new_rt (void);
-void                        *fox_engine1 (void *);
-void                        *fox_engine2 (void *);
 
+/* fox-rw */
+void   fox_iterator_reset (struct fox_rw_iterator *);
+int    fox_iterator_prior (struct fox_rw_iterator *, uint8_t);
+int    fox_iterator_next (struct fox_rw_iterator *, uint8_t);
+void   fox_iterator_free (struct fox_rw_iterator *);
+struct fox_rw_iterator *fox_iterator_new (struct fox_node *);
+int    fox_erase_all_vblks (struct fox_node *);
+int    fox_erase_blk (struct fox_tgt_blk *, struct fox_node *);
+int    fox_read_blk (struct fox_tgt_blk *, struct fox_node *,
+                                      struct fox_blkbuf *, uint16_t, uint16_t);
+int    fox_write_blk (struct fox_tgt_blk *, struct fox_node *,
+                                      struct fox_blkbuf *, uint16_t, uint16_t);
+int    fox_update_runtime (struct fox_node *);
+double fox_check_progress_runtime (struct fox_node *);
+double fox_check_progress_pgs (struct fox_node *);
+
+/* engines */
+int    foxeng_seq_init (struct fox_workload *);
+int    foxeng_rr_init (struct fox_workload *);
 #endif /* FOX_H */

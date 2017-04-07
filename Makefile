@@ -5,6 +5,8 @@ OBJ += fox-stats.o
 OBJ += fox-vblk.o
 OBJ += fox-buf.o
 OBJ += fox-output.o
+OBJ += engines/fox-sequential.o
+OBJ += engines/fox-round-robin.o
 CC = gcc
 CFLAGS = -g -Wall
 CFLAGSXX =
@@ -21,4 +23,4 @@ fox : $(OBJ)
 	$(CC) $(CFLAGS) $(CFLAGSXX) $(OBJ) -o fox $(LLNVM) $(SLIB)
 
 clean:
-	rm -f *.o fox
+	rm -f *.o engines/*.o fox
