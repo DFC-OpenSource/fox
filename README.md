@@ -14,10 +14,10 @@ For now, a very poor argument parser is implemented, sorry for that. Contributio
 
 ```
 Usage:
-$ sudo ./fox <string> runtime <int> ch <int> lun <int> blk <int> pg <int> node <int> read <int> write <int> delay <int> compare <int> output <int> engine <int>
+$ sudo ./fox <string> runtime <int> ch <int> lun <int> blk <int> pg <int> node <int> read <int> write <int> nppas <int> delay <int> compare <int> output <int> engine <int>
 
 Example:
-$ sudo ./fox nvme0n1 runtime 0 ch 8 lun 1 blk 10 pg 128 node 8 read 50 write 50 delay 0 compare 1 output 1 engine 2
+$ sudo ./fox nvme0n1 runtime 0 ch 8 lun 1 blk 10 pg 128 node 8 read 0 write 100 nppas 64 delay 0 compare 1 output 1 engine 1
 
 IMPORTANT: All the parameters must be included and exactly in this order, we did not implement an 'argp.h' parser due a lack of time. Contributions are welcome.
 ```
@@ -27,7 +27,7 @@ The first parameter is the device name (nvme0n1 for instance).
 If 0, the workload will be executed only once.
 If positive, the workload will run for <int> seconds.
 
-#ch
+#ch 
 The number of channels included in the workload.
 
 #lun
@@ -47,6 +47,9 @@ The percentage of read operations in the workload. read and write must sun 100 %
 
 #write
 The percentage of write operations in the workload. read and write must sun 100 %.
+
+#nppas
+The maximum number of ppas per vectored IO. Fox will create multi-page IOs when a sequence of pages in the same block and same LUN is requested. The value must be multiple of (n_planes * sectors_per_pg).
 
 #delay
 If 0, no delay is included. 
