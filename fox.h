@@ -110,6 +110,7 @@ struct fox_workload {
     uint8_t             nthreads;
     uint16_t            w_factor;
     uint16_t            r_factor;
+    uint16_t            nppas;
     uint32_t            max_delay;
     uint8_t             memcmp;
     uint8_t             output;

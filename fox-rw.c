@@ -39,22 +39,29 @@ int fox_update_runtime (struct fox_node *node)
 int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                         struct fox_blkbuf *buf, uint16_t npgs, uint16_t blkoff)
 {
-    int i;
-    uint8_t *buf_off, failed = 0;
+    int i, cmd_pgs;
+    uint8_t failed = 0;
     struct fox_output_row *row;
     uint64_t tstart, tend;
+    size_t tot_bytes;
+
+    cmd_pgs = node->wl->nppas /(node->wl->geo.nsectors * node->wl->geo.nplanes);
 
     if (blkoff + npgs > node->npgs)
         printf ("Wrong write offset. pg (%d) > pgs_per_blk (%d).\n",
                                              blkoff + npgs, (int) node->npgs);
 
-    for (i = blkoff; i < blkoff + npgs; i++) {
+    for (i = blkoff; i < blkoff + npgs; i = i + cmd_pgs) {
 
-        buf_off = buf->buf_w + node->wl->geo.vpg_nbytes * i;
         tstart = fox_timestamp_tmp_start(&node->stats);
 
-        if (nvm_vblk_pwrite(tgt->vblk, buf_off, node->wl->geo.vpg_nbytes,
-                                                 node->wl->geo.vpg_nbytes * i)){
+        cmd_pgs = (i + cmd_pgs > blkoff + npgs) ? blkoff + npgs - i : cmd_pgs;
+        tot_bytes = node->wl->geo.vpg_nbytes * cmd_pgs;
+
+        if (nvm_vblk_pwrite(tgt->vblk,
+                            buf->buf_w + node->wl->geo.vpg_nbytes * i,
+                            tot_bytes,
+                            node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_W, &node->stats, 1);
             tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
             failed++;
@@ -63,13 +70,13 @@ int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
 
         tend = fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
-        fox_set_stats(FOX_STATS_BWRITTEN,&node->stats,node->wl->geo.vpg_nbytes);
-        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats,node->wl->geo.vpg_nbytes);
+        fox_set_stats(FOX_STATS_BWRITTEN, &node->stats, tot_bytes);
+        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats, tot_bytes);
         fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
 
 FAILED:
-        fox_set_stats (FOX_STATS_PGS_W, &node->stats, 1);
-        node->stats.pgs_done++;
+        fox_set_stats (FOX_STATS_PGS_W, &node->stats, cmd_pgs);
+        node->stats.pgs_done += cmd_pgs;
 
         if (node->wl->output) {
             row = fox_output_new ();
@@ -83,7 +90,7 @@ FAILED:
             row->type = 'w';
             row->failed = failed;
             row->datacmp = 2;
-            row->size = node->wl->geo.vpg_nbytes;
+            row->size = node->wl->geo.vpg_nbytes * cmd_pgs;
             fox_output_append(row, node->nid);
         }
 
@@ -99,21 +106,29 @@ FAILED:
 int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                         struct fox_blkbuf *buf, uint16_t npgs, uint16_t blkoff)
 {
-    int i;
-    uint8_t *buf_off, failed = 0, cmp;
+    int i, cmd_pgs;
+    uint8_t failed = 0, cmp;
     struct fox_output_row *row;
     uint64_t tstart, tend;
+    size_t tot_bytes;
+
+    cmd_pgs = node->wl->nppas /(node->wl->geo.nsectors * node->wl->geo.nplanes);
 
     if (blkoff + npgs > node->npgs)
         printf ("Wrong read offset. pg (%d) > pgs_per_blk (%d).\n",
                                              blkoff + npgs, (int) node->npgs);
 
-    for (i = blkoff; i < blkoff + npgs; i++) {
-        buf_off = buf->buf_r + node->wl->geo.vpg_nbytes * i;
+    for (i = blkoff; i < blkoff + npgs; i = i + cmd_pgs) {
+
         tstart = fox_timestamp_tmp_start(&node->stats);
 
-        if (nvm_vblk_pread(tgt->vblk, buf_off, node->wl->geo.vpg_nbytes,
-                                                 node->wl->geo.vpg_nbytes * i)){
+        cmd_pgs = (i + cmd_pgs > blkoff + npgs) ? blkoff + npgs - i : cmd_pgs;
+        tot_bytes = node->wl->geo.vpg_nbytes * cmd_pgs;
+
+        if (nvm_vblk_pread(tgt->vblk,
+                            buf->buf_r + node->wl->geo.vpg_nbytes * i,
+                            tot_bytes,
+                            node->wl->geo.vpg_nbytes * i)){
             fox_set_stats (FOX_STATS_FAIL_R, &node->stats, 1);
             tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
             failed++;
@@ -123,14 +138,14 @@ int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
         tend = fox_timestamp_end(FOX_STATS_READ_T, &node->stats);
         fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
 
-        cmp = (node->wl->memcmp) ? fox_blkbuf_cmp(node, buf, i, 1) : 2;
+        cmp = (node->wl->memcmp) ? fox_blkbuf_cmp(node, buf, i, cmd_pgs) : 2;
 
-        fox_set_stats (FOX_STATS_BREAD, &node->stats, node->wl->geo.vpg_nbytes);
-        fox_set_stats (FOX_STATS_BRW_SEC,&node->stats,node->wl->geo.vpg_nbytes);
+        fox_set_stats (FOX_STATS_BREAD, &node->stats, tot_bytes);
+        fox_set_stats (FOX_STATS_BRW_SEC,&node->stats, tot_bytes);
         fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
 
 FAILED:
-        fox_set_stats (FOX_STATS_PGS_R, &node->stats, 1);
+        fox_set_stats (FOX_STATS_PGS_R, &node->stats, cmd_pgs);
 
         if (node->wl->output) {
             row = fox_output_new ();
@@ -144,12 +159,12 @@ FAILED:
             row->type = 'r';
             row->failed = failed;
             row->datacmp = cmp;
-            row->size = node->wl->geo.vpg_nbytes;
+            row->size = node->wl->geo.vpg_nbytes * cmd_pgs;
             fox_output_append(row, node->nid);
         }
 
         if (node->wl->w_factor == 0) {
-            node->stats.pgs_done++;
+            node->stats.pgs_done += cmd_pgs;
             if (fox_update_runtime(node))
                 return 1;
         }

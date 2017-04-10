@@ -40,6 +40,8 @@ LIST_HEAD(eng_list, fox_engine) eng_head = LIST_HEAD_INITIALIZER(eng_head);
 
 static int fox_check_workload (struct fox_workload *wl)
 {
+    int pg_ppas = wl->geo.nsectors * wl->geo.nplanes;
+
     if (wl->channels > wl->geo.nchannels ||
             wl->luns > wl->geo.nluns ||
             wl->blks > wl->geo.nblocks ||
@@ -50,7 +52,9 @@ static int fox_check_workload (struct fox_workload *wl)
             wl->pgs < 1 ||
             wl->nthreads < 1 ||
             wl->nthreads > wl->channels * wl->luns ||
-            wl->r_factor + wl->w_factor != 100)
+            wl->r_factor + wl->w_factor != 100 ||
+            wl->nppas > 64 ||
+            wl->nppas % pg_ppas != 0)
         return -1;
 
     return 0;
@@ -138,9 +142,10 @@ int main (int argc, char **argv) {
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
 
-    if (argc != 26) {
+    if (argc != 28) {
         printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-             "node 8 read 50 write 50 delay 800 compare 1 output 1 engine 2\n");
+             "node 8 read 50 write 50 nppas 64 delay 800 compare 1 output 1 "
+                                                                  "engine 2\n");
         return -1;
     }
 
@@ -166,15 +171,16 @@ int main (int argc, char **argv) {
     wl->nthreads = atoi(argv[13]);
     wl->r_factor = atoi(argv[15]);
     wl->w_factor = atoi(argv[17]);
-    wl->max_delay = atoi(argv[19]);
-    wl->memcmp = atoi(argv[21]);
-    wl->output = atoi(argv[23]);
+    wl->nppas = atoi(argv[19]);
+    wl->max_delay = atoi(argv[21]);
+    wl->memcmp = atoi(argv[23]);
+    wl->output = atoi(argv[25]);
     wl->dev = nvm_dev_open(wl->devname);
     wl->geo = nvm_dev_attr_geo(wl->dev);
 
     fox_init_engs(wl);
 
-    wl->engine = fox_get_engine(atoi(argv[25]));
+    wl->engine = fox_get_engine(atoi(argv[27]));
     if (!wl->engine) {
         printf("Engine not found.\n");
         goto ERR;

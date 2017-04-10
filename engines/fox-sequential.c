@@ -45,7 +45,10 @@ static int seq_start (struct fox_node *node)
             pgoff_r = 0;
             pgoff_w = 0;
             while (pgoff_w < node->npgs) {
-                npgs = (pgoff_w + node->wl->w_factor > node->npgs) ?
+                if (node->wl->r_factor == 0)
+                    npgs = node->npgs;
+                else
+                    npgs = (pgoff_w + node->wl->w_factor > node->npgs) ?
                                     node->npgs - pgoff_w : node->wl->w_factor;
 
                 if (fox_write_blk(&node->vblk_tgt,node,&nbuf,npgs,pgoff_w))
@@ -54,6 +57,8 @@ static int seq_start (struct fox_node *node)
 
                 aux_r = 0;
                 while (aux_r < node->wl->r_factor) {
+                    if (node->wl->w_factor == 0)
+                        npgs = node->npgs;
                     npgs = (pgoff_r + node->wl->r_factor > pgoff_w) ?
                                     pgoff_w - pgoff_r : node->wl->r_factor;
 
