@@ -131,7 +131,7 @@ struct fox_engine *fox_get_engine(uint16_t id)
 
 static int fox_init_engs (struct fox_workload *wl)
 {
-    if (foxeng_seq_init(wl) || foxeng_rr_init(wl))
+    if (foxeng_seq_init(wl) || foxeng_rr_init(wl) || foxeng_iso_init(wl))
         return -1;
 
     return 0;
@@ -144,8 +144,7 @@ int main (int argc, char **argv) {
 
     if (argc != 28) {
         printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-             "node 8 read 50 write 50 nppas 64 delay 800 compare 1 output 1 "
-                                                                  "engine 2\n");
+             "node 8 read 50 write 50 nppas 64 delay 800 compare 1 output 1 engine 2\n");
         return -1;
     }
 
@@ -159,6 +158,8 @@ int main (int argc, char **argv) {
 
     pthread_mutex_init (&wl->start_mut, NULL);
     pthread_cond_init (&wl->start_con, NULL);
+    pthread_mutex_init (&wl->monitor_mut, NULL);
+    pthread_cond_init (&wl->monitor_con, NULL);
 
     wl->runtime = atoi(argv[3]);
     wl->devname = malloc(8);
@@ -185,6 +186,10 @@ int main (int argc, char **argv) {
         printf("Engine not found.\n");
         goto ERR;
     }
+
+    /* Engine 3 and 100% read workload do not support memory comparison */
+    if (wl->engine->id == FOX_ENGINE_3 || wl->r_factor == 100)
+        wl->memcmp = 0;
 
     if (fox_check_workload(wl))
         goto GEO;
@@ -225,6 +230,8 @@ int main (int argc, char **argv) {
 
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);
+    pthread_mutex_destroy (&wl->monitor_mut);
+    pthread_cond_destroy (&wl->monitor_con);
     free (gl_stats);
     free (wl);
 
@@ -235,6 +242,8 @@ GEO:
 FREE:
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);
+    pthread_mutex_destroy (&wl->monitor_mut);
+    pthread_cond_destroy (&wl->monitor_con);
     free (gl_stats);
     free (wl);
 ERR:

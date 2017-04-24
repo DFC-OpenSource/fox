@@ -40,6 +40,7 @@
 
 #define FOX_ENGINE_1  0x1 /* All sequential */
 #define FOX_ENGINE_2  0x2 /* All round-robin */
+#define FOX_ENGINE_3  0x3 /* I/O Isolation */
 
 enum {
     FOX_STATS_ERASE_T = 0x1,
@@ -60,8 +61,9 @@ enum {
     FOX_STATS_FAIL_W
 };
 
-#define FOX_FLAG_READY (1 << 0)
-#define FOX_FLAG_DONE  (1 << 1)
+#define FOX_FLAG_READY      (1 << 0)
+#define FOX_FLAG_DONE       (1 << 1)
+#define FOX_FLAG_MONITOR    (1 << 2)
 
 struct fox_node;
 
@@ -122,6 +124,8 @@ struct fox_workload {
     struct fox_stats    *stats;
     pthread_mutex_t     start_mut;
     pthread_cond_t      start_con;
+    pthread_mutex_t     monitor_mut;
+    pthread_cond_t      monitor_con;
 };
 
 struct fox_blkbuf {
@@ -246,6 +250,7 @@ void                 fox_set_progress (struct fox_stats *, uint16_t);
 int                  fox_init_stats (struct fox_stats *);
 void                 fox_exit_stats (struct fox_stats *);
 void                 fox_wait_for_ready (struct fox_workload *);
+void                 fox_wait_for_monitor (struct fox_workload *);
 int                  fox_alloc_blk_buf (struct fox_node *, struct fox_blkbuf *);
 void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
 void                 fox_free_blkbuf (struct fox_blkbuf *, int);
@@ -282,4 +287,5 @@ double fox_check_progress_pgs (struct fox_node *);
 /* engines */
 int    foxeng_seq_init (struct fox_workload *);
 int    foxeng_rr_init (struct fox_workload *);
+int    foxeng_iso_init (struct fox_workload *);
 #endif /* FOX_H */

@@ -7,6 +7,7 @@ OBJ += fox-buf.o
 OBJ += fox-output.o
 OBJ += engines/fox-sequential.o
 OBJ += engines/fox-round-robin.o
+OBJ += engines/fox-isolation.o
 CC = gcc
 CFLAGS = -g -Wall
 CFLAGSXX =

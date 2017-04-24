@@ -1,3 +1,33 @@
+/*  - FOX - A tool for testing Open-Channel SSDs
+ *      - Engine 2 - Round-robin I/O
+ *
+ * Copyright (C) 2016, IT University of Copenhagen. All rights reserved.
+ * Written by Ivan Luiz Picoli <ivpi@itu.dk>
+ *
+ * Funding support provided by CAPES Foundation, Ministry of Education
+ * of Brazil, Brasilia - DF 70040-020, Brazil.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *  - Redistributions of source code must retain the above copyright notice,
+ *  this list of conditions and the following disclaimer.
+ *  - Redistributions in binary form must reproduce the above copyright notice,
+ *  this list of conditions and the following disclaimer in the documentation
+ *  and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 /* ENGINE 2: Channels, LUNs and blocks round-robin:
  * (ch,lun,blk,pg)
  * (0,0,0,0)
@@ -45,7 +75,7 @@ static int rr_write_factor (struct fox_node *node, struct rr_var *var)
                                                                  1, var->pg_i))
             return -1;
 
-        if (!fox_iterator_next(var->it, FOX_WRITE)) {
+        if (fox_iterator_next(var->it, FOX_WRITE)) {
             var->end++;
             break;
         }
@@ -59,7 +89,11 @@ static int rr_read_factor (struct fox_node *node, struct rr_var *var)
     while (var->roff < node->wl->r_factor) {
         var->w_i = (var->it->row_w * var->ncol) + var->it->col_w;
         var->r_i = (var->it->row_r * var->ncol) + var->it->col_r;
-        if (var->r_i >= var->w_i) {
+
+        /* (1)Avoiding reading pages that are not programmed yet.
+         * (2)The buffer size is var->pgs_sblk. To perform memcmp correctly, it
+         *    keeps the read pointer within var->pgs_sblk previous pages.  */
+        if (var->r_i >= var->w_i && !var->end) {
             do {
                 fox_iterator_prior(var->it, FOX_READ);
                 var->w_i = (var->it->row_w * var->ncol) + var->it->col_w;
@@ -105,10 +139,7 @@ static int rr_read_100 (struct fox_node *node, struct rr_var *var)
                                                                  1, var->pg_i))
             return -1;
 
-        fox_iterator_next(var->it, FOX_READ);
-
-        var->r_i = (var->it->row_r * var->ncol) + var->it->col_r;
-        if (var->r_i >= var->pgs_sblk * node->nblks - 1)
+        if (fox_iterator_next(var->it, FOX_READ))
             var->end++;
 
     } while (!var->end);
@@ -206,7 +237,7 @@ static void rr_exit (struct fox_node *node)
 }
 
 static struct fox_engine rr_engine = {
-    .id             = 2,
+    .id             = FOX_ENGINE_2,
     .name           = "round-robin",
     .start          = rr_start,
     .exit           = rr_exit,

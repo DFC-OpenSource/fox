@@ -1,4 +1,5 @@
 /*  - FOX - A tool for testing Open-Channel SSDs
+ *      - Thread geometry distribution
  *
  * Copyright (C) 2016, IT University of Copenhagen. All rights reserved.
  * Written by Ivan Luiz Picoli <ivpi@itu.dk>
@@ -48,6 +49,16 @@ void fox_wait_for_ready (struct fox_workload *wl)
         pthread_cond_wait(&wl->start_con, &wl->start_mut);
 
     pthread_mutex_unlock(&wl->start_mut);
+}
+
+void fox_wait_for_monitor (struct fox_workload *wl)
+{
+    pthread_mutex_lock(&wl->monitor_mut);
+
+    if (wl->stats->flags ^ FOX_FLAG_MONITOR)
+        pthread_cond_wait(&wl->monitor_con, &wl->monitor_mut);
+
+    pthread_mutex_unlock(&wl->monitor_mut);
 }
 
 static int fox_config_ch (struct fox_node *node)
