@@ -218,7 +218,7 @@ static void fox_show_progress (struct fox_node *node)
 {
     int node_i, i;
     uint16_t n_prog, wl_prog = 0;
-    long double tot_sec = 0, totalb = 0, th, iops;
+    long double th_sec, tot_sec = 0, totalb = 0, th = 0, iops;
     uint64_t usec, io_count = 0;
     struct fox_output_row_rt **rt;
 
@@ -257,11 +257,16 @@ static void fox_show_progress (struct fox_node *node)
             fox_output_append_rt (rt[node_i + 1], node[node_i].nid + 1);
         }
 
-        tot_sec += node[node_i].stats.rw_sect;
-        totalb += node[node_i].stats.brw_sec;
+        totalb = node[node_i].stats.brw_sec;
+        th_sec = node[node_i].stats.rw_sect;
+        node[node_i].stats.rw_sect -= th_sec;
+        node[node_i].stats.brw_sec -= totalb;
+        th_sec /= (long double) SEC64;
+        tot_sec += th_sec;
+
+        th += (totalb == 0 || th_sec == 0) ? 0 : totalb /  th_sec;
+
         io_count += node[node_i].stats.iops;
-        node[node_i].stats.rw_sect = 0;
-        node[node_i].stats.brw_sec = 0;
         node[node_i].stats.iops = 0;
 
         pthread_mutex_unlock(&node[node_i].stats.s_mutex);
@@ -271,12 +276,10 @@ static void fox_show_progress (struct fox_node *node)
     }
     wl_prog = (uint16_t) ((double) wl_prog / (double) node[0].wl->nthreads);
 
-    totalb = totalb / (long double) (1024 * 1024);
-    tot_sec = (tot_sec / (long double) SEC64) / node[0].wl->nthreads;
-
-    th = (totalb == 0 || tot_sec == 0) ? 0 : totalb / tot_sec;
     iops = (io_count == 0 || tot_sec == 0) ?
                                           0 : (long double) io_count / tot_sec;
+
+    th = th / (long double) (1024 * 1024);
 
     if (node->wl->output) {
         rt[0]->thpt = th;
@@ -367,7 +370,7 @@ void fox_monitor (struct fox_node *nodes)
 
 void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
 {
-    long double th, totb = 0, tsec, io_usec = 0, io_sec;
+    long double th = 0, totb = 0, tsec, io_usec = 0;
     uint64_t elat, rlat, wlat;
     int i;
     char line[80];
@@ -380,9 +383,7 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
     }
 
     tsec = st->runtime / (long double) SEC64;
-    io_sec = (io_usec / (long double) SEC64) / wl->nthreads;
-
-    th = (io_sec) ? totb / io_sec : 0;
+    th = totb / tsec;
 
     elat = (st->erased_blks) ? st->erase_t / st->erased_blks : 0;
     rlat = (st->pgs_r) ? st->read_t / (st->pgs_r & AND64) : 0;
