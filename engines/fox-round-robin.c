@@ -231,7 +231,7 @@ BREAK:
     return 0;
 }
 
-static void rr_exit (struct fox_node *node)
+static void rr_exit (void)
 {
     return;
 }

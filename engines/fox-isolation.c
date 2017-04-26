@@ -249,7 +249,7 @@ static int iso_start (struct fox_node *node)
     return ret;
 }
 
-static void iso_exit (struct fox_node *node)
+static void iso_exit (void)
 {
     return;
 }

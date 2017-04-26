@@ -130,7 +130,7 @@ OUT:
     return -1;
 }
 
-static void seq_exit (struct fox_node *node)
+static void seq_exit (void)
 {
     return;
 }

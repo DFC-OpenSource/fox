@@ -38,6 +38,8 @@
 LIST_HEAD(node_list, fox_node) node_head = LIST_HEAD_INITIALIZER(node_head);
 LIST_HEAD(eng_list, fox_engine) eng_head = LIST_HEAD_INITIALIZER(eng_head);
 
+static struct fox_argp *argp;
+
 static int fox_check_workload (struct fox_workload *wl)
 {
     int pg_ppas = wl->geo.nsectors * wl->geo.nplanes;
@@ -45,17 +47,42 @@ static int fox_check_workload (struct fox_workload *wl)
     if (wl->channels > wl->geo.nchannels ||
             wl->luns > wl->geo.nluns ||
             wl->blks > wl->geo.nblocks ||
-            wl->pgs > wl->geo.npages ||
-            wl->channels < 1 ||
-            wl->luns < 1 ||
-            wl->blks < 1 ||
-            wl->pgs < 1 ||
-            wl->nthreads < 1 ||
-            wl->nthreads > wl->channels * wl->luns ||
-            wl->r_factor + wl->w_factor != 100 ||
-            wl->nppas > 64 ||
-            wl->nppas % pg_ppas != 0)
+            wl->pgs > wl->geo.npages) {
+        printf (" Invalid device geometry.\n");
         return -1;
+    }
+
+    wl->channels = (!wl->channels) ? 1 : wl->channels;
+    wl->luns = (!wl->luns) ? 1 : wl->luns;
+    wl->blks = (!wl->blks) ? 1 : wl->blks;
+    wl->pgs = (!wl->pgs) ? 1 : wl->pgs;
+
+    if (wl->nthreads > wl->channels * wl->luns) {
+        printf (" Number of jobs cannot exceed total number of LUNs.\n");
+        return -1;
+    }
+
+    wl->nthreads = (!wl->nthreads) ? 1 : wl->nthreads;
+
+    if (wl->r_factor + wl->w_factor == 0)
+        wl->r_factor = 100;
+
+    if (wl->r_factor == 0 && wl->w_factor > 0)
+        wl->r_factor = 100 - wl->w_factor;
+    else if (wl->w_factor == 0 && wl->r_factor > 0)
+        wl->w_factor = 100 - wl->r_factor;
+
+    if (wl->r_factor + wl->w_factor != 100) {
+        printf (" Read + Write percentage must be equal to 100.\n");
+        return -1;
+    }
+
+    if (wl->nppas > 64 || wl->nppas % pg_ppas != 0) {
+        printf (" Vector must be multiple of %d and <= 64.\n", pg_ppas);
+        return -1;
+    }
+
+    wl->nppas = (!wl->nppas) ? pg_ppas : wl->nppas;
 
     return 0;
 }
@@ -102,11 +129,6 @@ static void fox_setup_delay (struct fox_node *nodes)
 
     for (th_i = 0; th_i < mod; th_i++)
         nodes[th_i].delay += th_i + 1;
-/*
-    for (th_i = 0; th_i < wl->nthreads; th_i++) {
-        printf ("delay %d: %d\n", th_i, nodes[th_i].delay);
-    }
-*/
 }
 
 int fox_engine_register (struct fox_engine *eng)
@@ -121,7 +143,12 @@ int fox_engine_register (struct fox_engine *eng)
 struct fox_engine *fox_get_engine(uint16_t id)
 {
     struct fox_engine *eng;
+
     LIST_FOREACH(eng, &eng_head, entry){
+        /* returns engine 1 if parameter is not provided */
+        if (id == 0 && eng->id == 1)
+            return eng;
+
         if(eng->id == id)
             return eng;
     }
@@ -137,80 +164,110 @@ static int fox_init_engs (struct fox_workload *wl)
     return 0;
 }
 
+static void fox_exit_engs (void)
+{
+    struct fox_engine *eng;
+    LIST_FOREACH(eng, &eng_head, entry){
+        eng->exit();
+    }
+}
+
 int main (int argc, char **argv) {
     struct fox_workload *wl;
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
+    int ret = -1;
 
-    if (argc != 28) {
-        printf (" => Example: fox nvme0n1 runtime 0 ch 8 lun 4 blk 10 pg 128 "
-             "node 8 read 50 write 50 nppas 64 delay 800 compare 1 output 1 engine 2\n");
-        return -1;
-    }
+    argp = calloc (sizeof (struct fox_argp), 1);
+    if (!argp)
+        goto RETURN;
 
-    LIST_INIT(&eng_head);
+    if (fox_argp_init (argc, argv, argp))
+        goto ARGP;
 
     gl_stats = malloc (sizeof (struct fox_stats));
-    wl = malloc (sizeof (struct fox_workload));
+    if (!gl_stats)
+        goto ARGP;
 
-    if (!gl_stats || !wl)
-        goto ERR;
+    wl = calloc (sizeof (struct fox_workload), 1);
+    if (!wl)
+        goto GL_STATS;
 
     pthread_mutex_init (&wl->start_mut, NULL);
     pthread_cond_init (&wl->start_con, NULL);
     pthread_mutex_init (&wl->monitor_mut, NULL);
     pthread_cond_init (&wl->monitor_con, NULL);
 
-    wl->runtime = atoi(argv[3]);
-    wl->devname = malloc(8);
-    wl->devname[7] = '\0';
-    memcpy(wl->devname, argv[1], 7);
-    wl->channels = atoi(argv[5]);
-    wl->luns = atoi(argv[7]);
-    wl->blks = atoi(argv[9]);
-    wl->pgs = atoi(argv[11]);
-    wl->nthreads = atoi(argv[13]);
-    wl->r_factor = atoi(argv[15]);
-    wl->w_factor = atoi(argv[17]);
-    wl->nppas = atoi(argv[19]);
-    wl->max_delay = atoi(argv[21]);
-    wl->memcmp = atoi(argv[23]);
-    wl->output = atoi(argv[25]);
+    wl->runtime = argp->runtime;
+    wl->devname = argp->devname;
+    wl->channels = argp->channels;
+    wl->luns = argp->luns;
+    wl->blks = argp->blks;
+    wl->pgs = argp->pgs;
+    wl->nthreads = argp->nthreads;
+    wl->r_factor = argp->r_factor;
+    wl->w_factor = argp->w_factor;
+    wl->nppas = argp->vector;
+    wl->max_delay = argp->max_delay;
+    wl->memcmp = argp->memcmp;
+    wl->output = argp->output;
+
+    if (wl->devname[0] == 0) {
+        wl->devname = malloc (8);
+        if (!wl->devname)
+            return -1;
+
+        memcpy (wl->devname, "nvme0n1", 8);
+    }
+
     wl->dev = nvm_dev_open(wl->devname);
+    if (!wl->dev) {
+        printf(" Device not found.\n");
+        goto MUTEX;
+    }
+
     wl->geo = nvm_dev_attr_geo(wl->dev);
 
-    fox_init_engs(wl);
+    LIST_INIT(&eng_head);
 
-    wl->engine = fox_get_engine(atoi(argv[27]));
+    if (fox_init_engs(wl))
+        goto DEV_CLOSE;
+
+    wl->engine = fox_get_engine(argp->engine);
     if (!wl->engine) {
-        printf("Engine not found.\n");
-        goto ERR;
+        printf(" Engine not found.\n");
+        goto EXIT_ENG;
     }
 
     /* Engine 3 and 100% read workload do not support memory comparison */
-    if (wl->engine->id == FOX_ENGINE_3 || wl->r_factor == 100)
+    if (wl->engine->id == FOX_ENGINE_3 || wl->r_factor == 100) {
+        if (wl->memcmp)
+            printf ("\n NOTE: This mode does not support buffer comparison.\n");
         wl->memcmp = 0;
+    }
 
     if (fox_check_workload(wl))
-        goto GEO;
+        goto EXIT_ENG;
 
-    fox_init_stats (gl_stats);
+    if (fox_init_stats (gl_stats))
+        goto EXIT_ENG;
+
     wl->stats = gl_stats;
 
-    if (fox_output_init (wl))
-        goto FREE;
+    if (wl->output && fox_output_init (wl))
+        goto EXIT_STATS;
 
     fox_show_workload (wl);
     fox_setup_io_factor (wl);
 
-    nodes = fox_create_threads(wl);
+    nodes = fox_create_threads (wl);
     if (!nodes)
-        goto FREE;
+        goto EXIT_OUTPUT;
 
     fox_setup_delay (nodes);
 
-    if (fox_alloc_vblks(wl))
-        goto FREE;
+    if (fox_alloc_vblks (wl))
+        goto EXIT_THREADS;
 
     fox_monitor (nodes);
 
@@ -218,34 +275,37 @@ int main (int argc, char **argv) {
     fox_show_stats (wl, nodes);
 
     if (wl->output) {
+        printf (" - Generating files under ./output ...\n\n");
         fox_output_flush ();
-        fox_output_flush_rt();
+        fox_output_flush_rt ();
     }
 
-    fox_output_exit ();
+    ret = 0;
+    fox_free_vblks (wl);
 
-    fox_free_vblks(wl);
+EXIT_THREADS:
     fox_exit_threads (nodes);
+EXIT_OUTPUT:
+    if (wl->output)
+        fox_output_exit ();
+EXIT_STATS:
     fox_exit_stats (gl_stats);
-
+    wl->stats = NULL;
+EXIT_ENG:
+    fox_exit_engs ();
+DEV_CLOSE:
+    // Liblightnvm close device
+MUTEX:
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);
     pthread_mutex_destroy (&wl->monitor_mut);
     pthread_cond_destroy (&wl->monitor_con);
-    free (gl_stats);
-    free (wl);
 
-    return 0;
-
-GEO:
-    printf ("Workload not accepted.\n");
-FREE:
-    pthread_mutex_destroy (&wl->start_mut);
-    pthread_cond_destroy (&wl->start_con);
-    pthread_mutex_destroy (&wl->monitor_mut);
-    pthread_cond_destroy (&wl->monitor_con);
-    free (gl_stats);
     free (wl);
-ERR:
-    return -1;
+GL_STATS:
+    free (gl_stats);
+ARGP:
+    free (argp);
+RETURN:
+    return ret;
 }

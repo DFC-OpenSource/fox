@@ -220,7 +220,7 @@ static void fox_show_progress (struct fox_node *node)
     uint16_t n_prog, wl_prog = 0;
     long double th_sec, tot_sec = 0, totalb = 0, th = 0, iops;
     uint64_t usec, io_count = 0;
-    struct fox_output_row_rt **rt;
+    struct fox_output_row_rt **rt = NULL;
 
     usec = fox_timestamp_end (FOX_STATS_RUNTIME, node[0].wl->stats);
 
@@ -390,78 +390,83 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
     wlat = (st->pgs_w) ? st->write_t / (st->pgs_w & AND64) : 0;
 
     sprintf (line, "\n\n --- RESULTS ---\n\n");
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Elapsed time  : %lu m-sec\n",st->runtime/(1000 & AND64));
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - I/O time (sum): %.0Lf m-sec\n", io_usec/(1000 & AND64));
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Read data     : %lu KB\n", st->bread / (1024 & AND64));
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Read pages    : %d\n", st->pgs_r);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Written data  : %lu KB\n",st->bwritten / (1024 & AND64));
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Written pages : %d\n", st->pgs_w);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf(line, " - Throughput    : %.2Lf MB/sec\n",th/((1024*1024) & AND64));
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - IOPS          : %.1Lf\n",(st->pgs_r + st->pgs_w) / tsec);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Erased blocks : %d\n", st->erased_blks);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Erase latency : %lu u-sec\n", elat);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Read latency  : %lu u-sec\n", rlat);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Write latency : %lu u-sec\n", wlat);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Failed memcmp : %d\n", st->fail_cmp);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Failed writes : %d\n", st->fail_w);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Failed reads  : %d\n", st->fail_r);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Failed erases : %d\n\n", st->fail_e);
-    fox_print (line);
-
-    printf (" - Generating files under ./output ...\n\n");
+    fox_print (line, wl->output);
 }
 
 void fox_show_workload (struct fox_workload *wl)
 {
-    char cmp;
     char line[80];
 
-    cmp = (wl->memcmp) ? 'y' : 'n';
-
     sprintf (line, "\n --- WORKLOAD ---\n\n");
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Device       : %s\n", wl->devname);
-    fox_print (line);
+    fox_print (line, wl->output);
     if (wl->runtime)
         sprintf (line, " - Runtime      : %lu sec\n", wl->runtime);
     else
         sprintf (line, " - Runtime      : 1 iteration\n");
-    fox_print (line);
-    sprintf (line, " - Threads      : %d\n",wl->nthreads);
-    fox_print (line);
+    fox_print (line, wl->output);
+    sprintf (line, " - Num of jobs  : %d\n",wl->nthreads);
+    fox_print (line, wl->output);
     sprintf (line, " - N of Channels: %d\n", wl->channels);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - LUNs per Chan: %d\n", wl->luns);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Blks per LUN : %d\n", wl->blks);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Pgs per Blk  : %d\n", wl->pgs);
-    fox_print (line);
+    fox_print (line, wl->output);
     sprintf (line, " - Write factor : %d %%\n", wl->w_factor);
-    fox_print (line);
-    sprintf (line, " - read factor  : %d %%\n", wl->r_factor);
-    fox_print (line);
+    fox_print (line, wl->output);
+    sprintf (line, " - Read factor  : %d %%\n", wl->r_factor);
+    fox_print (line, wl->output);
+    sprintf (line, " - Vector PPAs  : %d\n", wl->nppas);
+    fox_print (line, wl->output);
     sprintf (line, " - Max I/O delay: %d u-sec\n", wl->max_delay);
-    fox_print (line);
+    fox_print (line, wl->output);
+    if (wl->output)
+        sprintf (line, " - Output file  : enabled\n");
+    else
+        sprintf (line, " - Output file  : disabled\n");
+    fox_print (line, wl->output);
+    if (wl->memcmp)
+        sprintf (line, " - Read compare : enabled\n");
+    else
+        sprintf (line, " - Read compare : disabled\n");
+    fox_print (line, wl->output);
     sprintf (line, " - Engine       : %d (%s)\n", wl->engine->id,
                                                             wl->engine->name);
-    fox_print (line);
-    sprintf (line, " - Read compare : %c\n", cmp);
-    fox_print (line);
+    fox_print (line, wl->output);
 }

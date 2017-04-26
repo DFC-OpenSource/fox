@@ -42,7 +42,7 @@
 static void fox_fill_wb (uint8_t *wb, size_t sz)
 {
     int i;
-    uint8_t byte;
+    uint8_t byte = 0xff;
 
     srand(time (NULL));
     for (i = 0; i < sz; i++) {

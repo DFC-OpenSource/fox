@@ -65,10 +65,50 @@ enum {
 #define FOX_FLAG_DONE       (1 << 1)
 #define FOX_FLAG_MONITOR    (1 << 2)
 
+#define CMDARG_LEN          32
+#define CMDARG_FLAG_D       (1 << 0)
+#define CMDARG_FLAG_T       (1 << 1)
+#define CMDARG_FLAG_C       (1 << 2)
+#define CMDARG_FLAG_L       (1 << 3)
+#define CMDARG_FLAG_B       (1 << 4)
+#define CMDARG_FLAG_P       (1 << 5)
+#define CMDARG_FLAG_J       (1 << 6)
+#define CMDARG_FLAG_W       (1 << 7)
+#define CMDARG_FLAG_R       (1 << 8)
+#define CMDARG_FLAG_V       (1 << 9)
+#define CMDARG_FLAG_S       (1 << 10)
+#define CMDARG_FLAG_M       (1 << 11)
+#define CMDARG_FLAG_O       (1 << 12)
+#define CMDARG_FLAG_E       (1 << 13)
+
+struct fox_argp
+{
+    /* GLOBAL */
+    int         cmdtype;
+    int         arg_num;
+    uint32_t    arg_flag;
+
+    /* parameters */
+    char        devname[CMDARG_LEN];
+    uint64_t    runtime;
+    uint8_t     channels;
+    uint8_t     luns;
+    uint32_t    blks;
+    uint32_t    pgs;
+    uint8_t     nthreads;
+    uint16_t    w_factor;
+    uint16_t    r_factor;
+    uint16_t    vector;
+    uint32_t    max_delay;
+    uint8_t     memcmp;
+    uint8_t     output;
+    uint32_t    engine;
+};
+
 struct fox_node;
 
 typedef int  (fengine_start)(struct fox_node *);
-typedef void (fengine_exit)(struct fox_node *);
+typedef void (fengine_exit)(void);
 
 struct fox_engine {
     uint16_t                id;
@@ -116,7 +156,7 @@ struct fox_workload {
     uint32_t            max_delay;
     uint8_t             memcmp;
     uint8_t             output;
-    uint64_t            runtime; /* u-seconds */
+    uint64_t            runtime; /* seconds */
     struct fox_engine   *engine;
     NVM_DEV             dev;
     NVM_GEO             geo;
@@ -228,6 +268,7 @@ struct fox_rw_iterator {
     uint32_t    it_count;   /* Number of completed iterations */
 };
 
+int                  fox_argp_init (int, char **, struct fox_argp *);
 int                  fox_engine_register (struct fox_engine *);
 struct fox_engine   *fox_get_engine(uint16_t);
 struct fox_node     *fox_create_threads (struct fox_workload *);
@@ -264,7 +305,7 @@ void                 fox_output_append (struct fox_output_row *, int);
 void                 fox_output_append_rt(struct fox_output_row_rt *, uint16_t);
 void                 fox_output_flush (void);
 void                 fox_output_flush_rt (void);
-void                 fox_print (char *);
+void                 fox_print (char *, uint8_t);
 struct fox_output_row       *fox_output_new (void);
 struct fox_output_row_rt    *fox_output_new_rt (void);
 

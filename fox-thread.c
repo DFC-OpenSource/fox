@@ -180,9 +180,7 @@ static void *fox_thread_node (void * arg)
     struct fox_node *node = (struct fox_node *) arg;
 
     ret = node->engine->start(node);
-    if (!ret)
-        node->engine->exit(node);
-    else
+    if (ret)
         printf ("thread: Thread %d has failed.\n", node->nid);
 
     return NULL;

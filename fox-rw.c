@@ -137,7 +137,7 @@ int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                         struct fox_blkbuf *buf, uint16_t npgs, uint16_t blkoff)
 {
     int i, cmd_pgs;
-    uint8_t failed = 0, cmp;
+    uint8_t failed = 0, cmp = 0;
     struct fox_output_row *row;
     uint64_t tstart, tend;
     size_t tot_bytes;

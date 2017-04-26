@@ -145,20 +145,21 @@ void fox_output_append_rt (struct fox_output_row_rt *row, uint16_t nid)
     TAILQ_INSERT_TAIL (&rt_head, row, entry);
 }
 
-void fox_print (char *line)
+void fox_print (char *line, uint8_t to_file)
 {
     FILE *fp;
     char filename[42];
 
-    sprintf (filename, "output/%lu_fox_meta.csv", usec);
-    fp = fopen(filename, "a");
-    if (!fp)
-        return;
+    if (to_file) {
+        sprintf (filename, "output/%lu_fox_meta.csv", usec);
+        fp = fopen(filename, "a");
+        if (!fp)
+            return;
 
-    fputs (line, fp);
+        fputs (line, fp);
+        fclose(fp);
+    }
     fputs (line, stdout);
-
-    fclose(fp);
 }
 
 void fox_output_flush (void)
