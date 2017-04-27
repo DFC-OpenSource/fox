@@ -42,6 +42,8 @@
 #define FOX_ENGINE_2  0x2 /* All round-robin */
 #define FOX_ENGINE_3  0x3 /* I/O Isolation */
 
+#define PROV_NBLK_PER_VBLK 0x1
+
 enum {
     FOX_STATS_ERASE_T = 0x1,
     FOX_STATS_READ_T,
@@ -110,6 +112,16 @@ struct fox_node;
 typedef int  (fengine_start)(struct fox_node *);
 typedef void (fengine_exit)(void);
 
+struct nvm_vblk {
+    struct nvm_dev  *dev;
+    struct nvm_addr blks[128];
+    int             nblks;
+    size_t          nbytes;
+    size_t          pos_write;
+    size_t          pos_read;
+    int             nthreads;
+};
+
 struct fox_engine {
     uint16_t                id;
     char                    *name;
@@ -144,28 +156,28 @@ struct fox_stats {
 };
 
 struct fox_workload {
-    char                *devname;
-    uint8_t             channels;
-    uint8_t             luns;
-    uint32_t            blks;
-    uint32_t            pgs;
-    uint8_t             nthreads;
-    uint16_t            w_factor;
-    uint16_t            r_factor;
-    uint16_t            nppas;
-    uint32_t            max_delay;
-    uint8_t             memcmp;
-    uint8_t             output;
-    uint64_t            runtime; /* seconds */
-    struct fox_engine   *engine;
-    NVM_DEV             dev;
-    NVM_GEO             geo;
-    NVM_VBLK            *vblks;
-    struct fox_stats    *stats;
-    pthread_mutex_t     start_mut;
-    pthread_cond_t      start_con;
-    pthread_mutex_t     monitor_mut;
-    pthread_cond_t      monitor_con;
+    char                    *devname;
+    uint8_t                 channels;
+    uint8_t                 luns;
+    uint32_t                blks;
+    uint32_t                pgs;
+    uint8_t                 nthreads;
+    uint16_t                w_factor;
+    uint16_t                r_factor;
+    uint16_t                nppas;
+    uint32_t                max_delay;
+    uint8_t                 memcmp;
+    uint8_t                 output;
+    uint64_t                runtime; /* seconds */
+    struct fox_engine       *engine;
+    struct nvm_dev          *dev;
+    const struct nvm_geo    *geo;
+    struct nvm_vblk         **vblks;
+    struct fox_stats        *stats;
+    pthread_mutex_t         start_mut;
+    pthread_cond_t          start_con;
+    pthread_mutex_t         monitor_mut;
+    pthread_cond_t          monitor_con;
 };
 
 struct fox_blkbuf {
@@ -174,10 +186,10 @@ struct fox_blkbuf {
 };
 
 struct fox_tgt_blk {
-    NVM_VBLK    vblk;
-    uint16_t    ch;
-    uint16_t    lun;
-    uint32_t    blk;
+    struct nvm_vblk    *vblk;
+    uint16_t           ch;
+    uint16_t           lun;
+    uint32_t           blk;
 };
 
 struct fox_node {
@@ -224,6 +236,30 @@ struct fox_output_row {
     uint32_t    size;
     TAILQ_ENTRY(fox_output_row) entry;
 };
+
+/* Provisioning */
+    
+struct prov_free_blk{
+    struct nvm_addr             *addr;
+    struct nvm_vblk             *blk;
+    LIST_ENTRY(prov_free_blk)   entry;
+};
+    
+struct prov_nvm_lun {
+    struct nvm_addr         *addr;
+    uint32_t                nfree_blks;
+    struct prov_free_blk    **index;
+    pthread_mutex_t         l_mutex;
+    LIST_HEAD(free_blk_list, prov_free_blk) free_blk_head;
+};
+    
+struct prov_v_dev {
+    struct nvm_dev          *dev;
+    const struct nvm_geo    *geo;
+    struct prov_nvm_lun     *free_blks;
+};
+
+/* End Provisioning */
 
 #define FOX_READ    0x1
 #define FOX_WRITE   0x2
@@ -329,4 +365,29 @@ double fox_check_progress_pgs (struct fox_node *);
 int    foxeng_seq_init (struct fox_workload *);
 int    foxeng_rr_init (struct fox_workload *);
 int    foxeng_iso_init (struct fox_workload *);
+
+/* provisioning */
+int     prov_init(struct nvm_dev *dev, const struct nvm_geo *geo);
+int     prov_exit (void);
+int     prov_init_fblk_list(struct nvm_dev *dev, const struct nvm_geo *geo);
+int     prov_exit_fblk_list();
+int     prov_gen_list_per_lun(int ch, int l);
+int     prov_get_vblock(size_t ch, size_t lun, struct nvm_vblk *vblk);
+int     prov_put_vblock(struct nvm_vblk *vblk);
+ssize_t prov_vblock_erase(struct nvm_vblk *vblk);
+void    prov_dev_close(struct nvm_dev *dev);
+void    prov_fblk_pr();
+void    prov_lun_pr(struct prov_nvm_lun lun);
+void    prov_dev_pr();
+struct nvm_vblk  *prov_alloc_vblk(struct nvm_dev *dev, struct nvm_addr *addr);
+struct nvm_dev   *prov_dev_open(const char *dev_path);
+const struct nvm_geo *prov_get_geo(struct nvm_dev *dev);
+const struct nvm_bbt *prov_get_bbt(struct nvm_dev *dev, 
+                                    struct nvm_addr addr, struct nvm_ret *ret);
+ssize_t prov_vblock_pread(struct nvm_vblk *vblk, void *buf, size_t count, 
+                                                                size_t offset);
+ssize_t prov_vblock_pwrite(struct nvm_vblk *vblk, const void *buf, 
+                                                  size_t count, size_t offset);
+ssize_t prov_vblock_pwrite_next(struct nvm_vblk *vblk, const void *buf, 
+                                                                 size_t count);
 #endif /* FOX_H */

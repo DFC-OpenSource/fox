@@ -59,18 +59,18 @@ int fox_vblk_tgt (struct fox_node *node, uint16_t chid, uint16_t lunid,
     return 0;
 }
 
-static int fox_write_vblk (NVM_VBLK vblk, struct fox_workload *wl)
+static int fox_write_vblk (struct nvm_vblk *vblk, struct fox_workload *wl)
 {
     uint8_t *buf, *buf_off;
+    size_t vpg_sz = wl->geo->page_nbytes * wl->geo->nplanes;
     int i;
 
-    buf = malloc (wl->geo.vblk_nbytes);
+    buf = malloc (vblk->nbytes);
 
     for (i = 0; i < wl->pgs; i++) {
-        buf_off = buf + wl->geo.vpg_nbytes * i;
+        buf_off = buf + vpg_sz * i;
 
-        if (nvm_vblk_pwrite(vblk, buf_off, wl->geo.vpg_nbytes,
-                                                       wl->geo.vpg_nbytes * i)){
+        if (prov_vblock_pwrite(vblk, buf_off, vpg_sz,vpg_sz * i) != vpg_sz){
             printf ("WARNING: error when writing to vblk page.\n");
             return -1;
         }
@@ -88,7 +88,7 @@ int fox_alloc_vblks (struct fox_workload *wl)
     blk_lun = t_blks / t_luns;
     blk_ch = blk_lun * wl->luns;
 
-    wl->vblks = malloc (sizeof(NVM_VBLK) * t_blks);
+    wl->vblks = malloc (sizeof(struct nvm_vblk *) * t_blks);
 
     if (!wl->vblks)
         return -1;
@@ -98,7 +98,7 @@ int fox_alloc_vblks (struct fox_workload *wl)
         printf ("\r - Allocating blocks... [%d/%d]", blk_i, t_blks);
         fflush(stdout);
 
-        wl->vblks[blk_i] = nvm_vblk_new();
+        wl->vblks[blk_i] = malloc (sizeof(struct nvm_vblk));
 
         ch_i = blk_i / blk_ch;
         lun_i = (blk_i % blk_ch) / blk_lun;
@@ -106,7 +106,8 @@ int fox_alloc_vblks (struct fox_workload *wl)
         fox_timestamp_tmp_start(wl->stats);
 
         /* TODO: treat error */
-        nvm_vblk_gets(wl->vblks[blk_i], wl->dev, ch_i, lun_i);
+        if(prov_get_vblock(ch_i, lun_i, wl->vblks[blk_i])<0)
+            return -1;
         fox_timestamp_end(FOX_STATS_ERASE_T, wl->stats);
         fox_set_stats (FOX_STATS_ERASED_BLK, wl->stats, 1);
 
@@ -126,7 +127,7 @@ void fox_free_vblks (struct fox_workload *wl)
     t_blks = wl->blks * wl->luns * wl->channels;
 
     for (blk_i = 0; blk_i < t_blks; blk_i++)
-        nvm_vblk_put(wl->vblks[blk_i]);
+        prov_put_vblock(wl->vblks[blk_i]);
 
     free (wl->vblks);
 }

@@ -30,7 +30,7 @@ static char doc_run[] =
         "\n Example:"
         "\n     fox run <parameters>\n"
         "\nIf parameters are not provided, the default values will be used:"
-        "\n     device   = nvme0n1"
+        "\n     device   = /dev/nvme0n1"
         "\n     runtime  = 0 (only 1 iteration will be performed)"
         "\n     channels = 1"
         "\n     luns     = 1"
@@ -46,7 +46,7 @@ static char doc_run[] =
         "\n     engine   = 1 (sequential)";
 
 static struct argp_option opt_run[] = {
-    {"device", 'd', "<char>", 0,"Device name. e.g: nvme0n1"},
+    {"device", 'd', "<char>", 0,"Device name. e.g: /dev/nvme0n1"},
     {"runtime", 't', "<int>", 0, "Runtime in seconds. If 0 or not present, "
     "the workload will finish when all pages are done in a given geometry."},
     {"channels", 'c', "<int>", 0, "Number of channels."},

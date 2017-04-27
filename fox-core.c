@@ -42,12 +42,12 @@ static struct fox_argp *argp;
 
 static int fox_check_workload (struct fox_workload *wl)
 {
-    int pg_ppas = wl->geo.nsectors * wl->geo.nplanes;
+    int pg_ppas = wl->geo->nsectors * wl->geo->nplanes;
 
-    if (wl->channels > wl->geo.nchannels ||
-            wl->luns > wl->geo.nluns ||
-            wl->blks > wl->geo.nblocks ||
-            wl->pgs > wl->geo.npages) {
+    if (wl->channels > wl->geo->nchannels ||
+            wl->luns > wl->geo->nluns ||
+            wl->blks > wl->geo->nblocks ||
+            wl->pgs > wl->geo->npages) {
         printf (" Invalid device geometry.\n");
         return -1;
     }
@@ -213,25 +213,27 @@ int main (int argc, char **argv) {
     wl->output = argp->output;
 
     if (wl->devname[0] == 0) {
-        wl->devname = malloc (8);
+        wl->devname = malloc (13);
         if (!wl->devname)
             return -1;
 
-        memcpy (wl->devname, "nvme0n1", 8);
+        memcpy (wl->devname, "/dev/nvme0n1", 13);
     }
 
-    wl->dev = nvm_dev_open(wl->devname);
+    wl->dev = prov_dev_open(wl->devname);
     if (!wl->dev) {
         printf(" Device not found.\n");
         goto MUTEX;
     }
 
-    wl->geo = nvm_dev_attr_geo(wl->dev);
+    wl->geo = prov_get_geo(wl->dev);;
 
+    if (prov_init(wl->dev, wl->geo))
+        goto DEV_CLOSE;
     LIST_INIT(&eng_head);
 
     if (fox_init_engs(wl))
-        goto DEV_CLOSE;
+        goto EXIT_PROV;
 
     wl->engine = fox_get_engine(argp->engine);
     if (!wl->engine) {
@@ -293,8 +295,10 @@ EXIT_STATS:
     wl->stats = NULL;
 EXIT_ENG:
     fox_exit_engs ();
+EXIT_PROV:
+    prov_exit ();
 DEV_CLOSE:
-    // Liblightnvm close device
+    prov_dev_close(wl->dev);
 MUTEX:
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);
