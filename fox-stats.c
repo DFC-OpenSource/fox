@@ -120,6 +120,7 @@ void fox_set_stats (uint8_t type, struct fox_stats *st, int64_t val)
             break;
         case FOX_STATS_IOPS:
             st->iops += (uint32_t) val;
+            st->io_count += (uint32_t) val;
             break;
         case FOX_STATS_FAIL_CMP:
             st->fail_cmp += (uint32_t) val;
@@ -207,6 +208,7 @@ void fox_merge_stats (struct fox_node *nodes, struct fox_stats *st)
         st->fail_w += nodes[i].stats.fail_w;
         st->fail_r += nodes[i].stats.fail_r;
         st->fail_cmp += nodes[i].stats.fail_cmp;
+        st->io_count += nodes[i].stats.io_count;
     }
 
     fox_timestamp_end (FOX_STATS_RUNTIME, st);
@@ -218,7 +220,7 @@ static void fox_show_progress (struct fox_node *node)
 {
     int node_i, i;
     uint16_t n_prog, wl_prog = 0;
-    long double th_sec, tot_sec = 0, totalb = 0, th = 0, iops;
+    long double th_sec, tot_sec = 0, totalb = 0, th = 0, iops = 0;
     uint64_t usec, io_count = 0;
     struct fox_output_row_rt **rt = NULL;
 
@@ -259,14 +261,15 @@ static void fox_show_progress (struct fox_node *node)
 
         totalb = node[node_i].stats.brw_sec;
         th_sec = node[node_i].stats.rw_sect;
+        io_count = node[node_i].stats.iops;
         node[node_i].stats.rw_sect -= th_sec;
         node[node_i].stats.brw_sec -= totalb;
         th_sec /= (long double) SEC64;
         tot_sec += th_sec;
 
         th += (totalb == 0 || th_sec == 0) ? 0 : totalb /  th_sec;
-
-        io_count += node[node_i].stats.iops;
+        iops += (io_count == 0 || th_sec == 0) ? 
+                                          0 : (long double) io_count / th_sec;
         node[node_i].stats.iops = 0;
 
         pthread_mutex_unlock(&node[node_i].stats.s_mutex);
@@ -275,9 +278,6 @@ static void fox_show_progress (struct fox_node *node)
 
     }
     wl_prog = (uint16_t) ((double) wl_prog / (double) node[0].wl->nthreads);
-
-    iops = (io_count == 0 || tot_sec == 0) ?
-                                          0 : (long double) io_count / tot_sec;
 
     th = th / (long double) (1024 * 1024);
 
@@ -405,7 +405,7 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
     fox_print (line, wl->output);
     sprintf(line, " - Throughput    : %.2Lf MB/sec\n",th/((1024*1024) & AND64));
     fox_print (line, wl->output);
-    sprintf (line, " - IOPS          : %.1Lf\n",(st->pgs_r + st->pgs_w) / tsec);
+    sprintf (line, " - IOPS          : %.1Lf\n", st->io_count / tsec);
     fox_print (line, wl->output);
     sprintf (line, " - Erased blocks : %d\n", st->erased_blks);
     fox_print (line, wl->output);

@@ -55,7 +55,8 @@ static void fox_fill_wb (uint8_t *wb, size_t sz)
 static void *fox_alloc_blk_buf_t (struct fox_node *node, uint8_t type)
 {
     void *buf;
-    size_t size = node->npgs * node->wl->geo.vpg_nbytes;
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
+    size_t size = node->npgs * vpg_sz;
 
     buf = malloc (size);
     if (!buf)
@@ -80,8 +81,10 @@ int fox_alloc_blk_buf (struct fox_node *node, struct fox_blkbuf *buf)
 
 void fox_blkbuf_reset (struct fox_node *node, struct fox_blkbuf *buf)
 {
-    //fox_fill_wb (buf->buf_w, node->npgs * node->wl->geo.vpg_nbytes);
-    memset (buf->buf_r, 0x0, node->npgs * node->wl->geo.vpg_nbytes);
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
+    
+    //fox_fill_wb (buf->buf_w, node->npgs * node->wl->geo->vpg_nbytes);
+    memset (buf->buf_r, 0x0, node->npgs * vpg_sz);
 }
 
 void fox_free_blkbuf (struct fox_blkbuf *buf, int count)
@@ -98,6 +101,7 @@ int fox_blkbuf_cmp (struct fox_node *node, struct fox_blkbuf *buf,
                                                  uint16_t pgoff, uint16_t npgs)
 {
     uint8_t *offw, *offr;
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
 
     if (!node->wl->memcmp)
         return -1;
@@ -108,10 +112,10 @@ int fox_blkbuf_cmp (struct fox_node *node, struct fox_blkbuf *buf,
         return -1;
     }
 
-    offw = buf->buf_w + node->wl->geo.vpg_nbytes * pgoff;
-    offr = buf->buf_r + node->wl->geo.vpg_nbytes * pgoff;
+    offw = buf->buf_w + vpg_sz * pgoff;
+    offr = buf->buf_r + vpg_sz * pgoff;
 
-    if (memcmp (offw, offr, node->wl->geo.vpg_nbytes * npgs)) {
+    if (memcmp (offw, offr, vpg_sz * npgs)) {
         fox_set_stats(FOX_STATS_FAIL_CMP, &node->stats, 1);
         return 1;
     }

@@ -74,6 +74,7 @@ static int iso_read_prepare (struct fox_node *node, struct fox_blkbuf *bufblk)
 {
     int ch_i, lun_i, blk_i, blkoff, pg_i, cmd_pgs;
     size_t tot_bytes;
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
 
     /* Write all blocks for reading threads */
     for (ch_i = 0; ch_i < node->nchs; ch_i++) {
@@ -81,19 +82,18 @@ static int iso_read_prepare (struct fox_node *node, struct fox_blkbuf *bufblk)
             for (blk_i = 0; blk_i < node->nblks; blk_i++) {
 
                 fox_vblk_tgt(node, node->ch[ch_i], node->lun[lun_i], blk_i);
-                cmd_pgs = node->wl->nppas /(node->wl->geo.nsectors *
-                                                        node->wl->geo.nplanes);
+                cmd_pgs = node->wl->nppas /(node->wl->geo->nsectors *
+                                                        node->wl->geo->nplanes);
 
                 for (pg_i = 0; pg_i < node->npgs; pg_i = pg_i + cmd_pgs) {
                     cmd_pgs = (pg_i + cmd_pgs > node->npgs) ? node->npgs - pg_i
                                                                      : cmd_pgs;
-                    tot_bytes = node->wl->geo.vpg_nbytes * cmd_pgs;
+                    tot_bytes = vpg_sz * cmd_pgs;
                     blkoff = (ch_i * node->nluns) + lun_i;
-                    if (nvm_vblk_pwrite(node->vblk_tgt.vblk,
-                                        bufblk[blkoff].buf_w +
-                                                node->wl->geo.vpg_nbytes * pg_i,
+                    if (prov_vblock_pwrite(node->vblk_tgt.vblk,
+                                        bufblk[blkoff].buf_w + vpg_sz * pg_i,
                                         tot_bytes,
-                                        node->wl->geo.vpg_nbytes * pg_i)){
+                                        vpg_sz * pg_i)!=tot_bytes){
                         printf ("Engine 3: error when writing to vblk page.n");
                         return -1;
                     }

@@ -65,7 +65,7 @@ static int fox_config_ch (struct fox_node *node)
 {
     int ch_th, mod_ch, i, add;
 
-    if (node->wl->channels > node->wl->geo.nchannels ||
+    if (node->wl->channels > node->wl->geo->nchannels ||
                                                      node->wl->channels == 0) {
         printf("thread: Invalid number of channels.\n");
         return -1;
@@ -110,7 +110,7 @@ static int fox_config_lun (struct fox_node *node)
 {
     int lun_th, mod_lun, i, add, n_th, nid;
 
-    if (node->wl->luns > node->wl->geo.nluns || node->wl->luns == 0) {
+    if (node->wl->luns > node->wl->geo->nluns || node->wl->luns == 0) {
         printf("thread: Invalid number of LUNs.\n");
         return -1;
     }
