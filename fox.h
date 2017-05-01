@@ -141,6 +141,7 @@ struct fox_stats {
     uint32_t        erased_blks;
     uint32_t        pgs_r;
     uint32_t        pgs_w;
+    uint32_t        io_count;
     uint64_t        bread;
     uint64_t        bwritten;
     uint64_t        brw_sec; /* transferred bytes in the last second */

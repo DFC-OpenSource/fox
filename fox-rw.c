@@ -93,7 +93,7 @@ int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                             buf->buf_w + vpg_sz * i,
                             tot_bytes,
                             vpg_sz * i) != tot_bytes){
-            fox_set_stats (FOX_STATS_FAIL_W, &node->stats, 1);
+            fox_set_stats (FOX_STATS_FAIL_W, &node->stats, cmd_pgs);
             tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
             failed++;
             goto FAILED;
@@ -161,7 +161,7 @@ int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
                             buf->buf_r + vpg_sz * i,
                             tot_bytes,
                             vpg_sz * i) != tot_bytes){
-            fox_set_stats (FOX_STATS_FAIL_R, &node->stats, 1);
+            fox_set_stats (FOX_STATS_FAIL_R, &node->stats, cmd_pgs);
             tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
             failed++;
             goto FAILED;
