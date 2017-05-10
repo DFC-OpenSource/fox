@@ -177,13 +177,20 @@ int main (int argc, char **argv) {
     struct fox_node *nodes;
     struct fox_stats *gl_stats;
     int ret = -1;
+    int mode;
 
     argp = calloc (sizeof (struct fox_argp), 1);
     if (!argp)
         goto RETURN;
 
-    if (fox_argp_init (argc, argv, argp))
+    mode = fox_argp_init (argc, argv, argp);
+    if (mode < 0)
         goto ARGP;
+
+    if (mode == FOX_IO_MODE) {
+        ret = fox_mio_init (argp);
+        goto ARGP;
+    }
 
     gl_stats = malloc (sizeof (struct fox_stats));
     if (!gl_stats)
@@ -226,7 +233,7 @@ int main (int argc, char **argv) {
         goto MUTEX;
     }
 
-    wl->geo = prov_get_geo(wl->dev);;
+    wl->geo = prov_get_geo(wl->dev);
 
     if (prov_init(wl->dev, wl->geo))
         goto DEV_CLOSE;

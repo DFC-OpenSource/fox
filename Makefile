@@ -7,6 +7,7 @@ OBJ += fox-buf.o
 OBJ += fox-output.o
 OBJ += fox-argp.o
 OBJ += fox-prov.o
+OBJ += fox-mode-io.o
 OBJ += engines/fox-sequential.o
 OBJ += engines/fox-round-robin.o
 OBJ += engines/fox-isolation.o
