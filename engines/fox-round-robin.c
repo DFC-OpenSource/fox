@@ -44,6 +44,9 @@
 #include <stdlib.h>
 #include "../fox.h"
 
+#define BUF_SBLK_COUNT 0x4
+#define BUF_DELAY_READ 0x0
+
 struct rr_var {
     int ncol;
     int pgs_sblk;
@@ -86,25 +89,31 @@ static int rr_write_factor (struct fox_node *node, struct rr_var *var)
 
 static int rr_read_factor (struct fox_node *node, struct rr_var *var)
 {
+    uint16_t sblk_pgs = var->pgs_sblk * BUF_SBLK_COUNT;
+
     while (var->roff < node->wl->r_factor) {
         var->w_i = (var->it->row_w * var->ncol) + var->it->col_w;
         var->r_i = (var->it->row_r * var->ncol) + var->it->col_r;
 
+        if (BUF_DELAY_READ && var->w_i < var->pgs_sblk)
+            return 0;
+
         /* (1)Avoiding reading pages that are not programmed yet.
-         * (2)The buffer size is var->pgs_sblk. To perform memcmp correctly, it
-         *    keeps the read pointer within var->pgs_sblk previous pages.  */
+         * (2)The buffer size is var->pgs_sblk * BUF_SBLK_COUNT.
+         *    To perform memcmp correctly, it keeps the read pointer
+         *    within var->pgs_sblk previous pages.  */
         if (var->r_i >= var->w_i && !var->end) {
             do {
                 fox_iterator_prior(var->it, FOX_READ);
                 var->w_i = (var->it->row_w * var->ncol) + var->it->col_w;
                 var->r_i = (var->it->row_r * var->ncol) + var->it->col_r;
-            } while (var->r_i > 0 && var->r_i > var->w_i - var->pgs_sblk);
-        } else if (var->r_i < var->w_i - var->pgs_sblk) {
+            } while (var->r_i > 0 && var->r_i > var->w_i - sblk_pgs);
+        } else if (var->r_i < var->w_i - sblk_pgs) {
             do {
                 fox_iterator_next(var->it, FOX_READ);
                 var->w_i = (var->it->row_w * var->ncol) + var->it->col_w;
                 var->r_i = (var->it->row_r * var->ncol) + var->it->col_r;
-            } while (var->r_i < var->w_i - var->pgs_sblk);
+            } while (var->r_i < var->w_i - sblk_pgs);
         }
 
         var->pg_i = var->it->row_r % node->npgs;
@@ -149,6 +158,8 @@ static int rr_read_100 (struct fox_node *node, struct rr_var *var)
 
 static int rr_init_var (struct fox_node *node, struct rr_var *var)
 {
+    uint16_t blks = node->nchs * node->nluns * BUF_SBLK_COUNT;
+
     node->stats.pgs_done = 0;
     var->ncol = node->nluns * node->nchs;
     var->pgs_sblk = var->ncol * node->npgs;
@@ -157,11 +168,11 @@ static int rr_init_var (struct fox_node *node, struct rr_var *var)
     if (!var->it)
         goto OUT;
 
-    var->bufblk = malloc(sizeof (struct fox_blkbuf) * node->nchs * node->nluns);
+    var->bufblk = malloc(sizeof(struct fox_blkbuf) * blks);
     if (!var->bufblk)
         goto ITERATOR;
 
-    for (var->blk_i = 0; var->blk_i < node->nchs * node->nluns; var->blk_i++) {
+    for (var->blk_i = 0; var->blk_i < blks; var->blk_i++) {
         if (fox_alloc_blk_buf (node, &var->bufblk[var->blk_i])) {
             fox_free_blkbuf(var->bufblk, var->blk_i);
             goto BUFBLK;
