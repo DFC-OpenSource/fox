@@ -196,7 +196,7 @@ FAILED:
         }
 
         /* Create a file under /corruption containing the read binary */
-        if (cmp) {
+        if (node->wl->memcmp && cmp) {
             char filename[40];
             uint32_t pblk = fox_vblk_get_pblk (node->wl, tgt->ch, tgt->lun,
                                                                       tgt->blk);
