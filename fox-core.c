@@ -283,6 +283,9 @@ int main (int argc, char **argv) {
     fox_merge_stats (nodes, gl_stats);
     fox_show_stats (wl, nodes);
 
+    if (wl->stats->fail_cmp)
+        printf (" - CORRUPTION detected, read data under ./corruption\n\n");
+
     if (wl->output) {
         printf (" - Generating files under ./output ...\n\n");
         fox_output_flush ();

@@ -344,6 +344,8 @@ int                  fox_alloc_vblks (struct fox_workload *);
 void                 fox_free_vblks (struct fox_workload *);
 int                  fox_vblk_tgt (struct fox_node *, uint16_t, uint16_t,
                                                                       uint32_t);
+uint32_t             fox_vblk_get_pblk (struct fox_workload *, uint16_t,
+                                                            uint16_t, uint32_t);
 void                 fox_set_progress (struct fox_stats *, uint16_t);
 int                  fox_init_stats (struct fox_stats *);
 void                 fox_exit_stats (struct fox_stats *);
@@ -366,6 +368,7 @@ void                 fox_output_flush_rt (void);
 void                 fox_print (char *, uint8_t);
 struct fox_output_row       *fox_output_new (void);
 struct fox_output_row_rt    *fox_output_new_rt (void);
+void                 fox_flush_corruption (char *, void *, void *, size_t);
 
 /* fox-rw */
 void   fox_iterator_reset (struct fox_rw_iterator *);

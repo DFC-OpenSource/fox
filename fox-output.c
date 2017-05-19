@@ -276,3 +276,30 @@ void fox_output_flush_rt (void)
 CLOSE_FILE:
     fclose(fp);
 }
+
+void fox_flush_corruption (char *name, void *bufw, void *bufr, size_t sz)
+{
+    FILE *fp = NULL;
+    struct stat st = {0};
+    char filename[80];
+
+    if (stat("corruption", &st) == -1)
+            mkdir("corruption", S_IRWXO);
+
+    if (!usec) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        usec = tv.tv_sec * SEC64;
+        usec += tv.tv_usec;
+    }
+
+    sprintf(filename, "corruption/%lu_%s_write.bin", usec, name);
+    fp = fopen(filename, "a");
+    fwrite(bufw, sz, 1, fp);
+    fclose (fp);
+
+    sprintf(filename, "corruption/%lu_%s_read.bin", usec, name);
+    fp = fopen(filename, "a");
+    fwrite(bufr, sz, 1, fp);
+    fclose (fp);
+}

@@ -32,21 +32,29 @@
 #include <stdio.h>
 #include "fox.h"
 
-int fox_vblk_tgt (struct fox_node *node, uint16_t chid, uint16_t lunid,
-                                                                 uint32_t blkid)
+uint32_t fox_vblk_get_pblk (struct fox_workload *wl, uint16_t ch, uint16_t lun,
+                                                                  uint32_t blk)
 {
-    int t_blks, t_luns, blk_ch, blk_lun, boff;
-    struct fox_workload *wl = node->wl;
+    int t_blks, t_luns, blk_ch, blk_lun;
 
     t_luns = wl->luns * wl->channels;
     t_blks = wl->blks * t_luns;
     blk_lun = t_blks / t_luns;
     blk_ch = blk_lun * wl->luns;
 
+    return (ch * blk_ch) + (lun * blk_lun) + blk;
+}
+
+int fox_vblk_tgt (struct fox_node *node, uint16_t chid, uint16_t lunid,
+                                                                 uint32_t blkid)
+{
+    int boff;
+    struct fox_workload *wl = node->wl;
+
     if (chid > wl->channels - 1 || lunid > wl->luns - 1 || blkid > wl->blks - 1)
         return -1;
 
-    boff = (chid * blk_ch) + (lunid * blk_lun) + blkid;
+    boff = fox_vblk_get_pblk (wl, chid, lunid, blkid);
 
     /* TODO: bitmap of busy blocks
              set node->vblk_tgt as idle and boff as busy */

@@ -195,6 +195,18 @@ FAILED:
             fox_output_append(row, node->nid);
         }
 
+        /* Create a file under /corruption containing the read binary */
+        if (cmp) {
+            char filename[40];
+            uint32_t pblk = fox_vblk_get_pblk (node->wl, tgt->ch, tgt->lun,
+                                                                      tgt->blk);
+
+            sprintf(filename, "c%dl%db%dp%d-seq%d", tgt->ch, tgt->lun, pblk, i,
+                                                                      cmd_pgs);
+            fox_flush_corruption (filename, buf->buf_w + vpg_sz * i,
+                                            buf->buf_r + vpg_sz * i, tot_bytes);
+        }
+
         if (node->wl->w_factor == 0  || node->wl->engine->id == FOX_ENGINE_3) {
             node->stats.pgs_done += cmd_pgs;
             if (fox_update_runtime(node))
