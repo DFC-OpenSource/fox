@@ -121,6 +121,8 @@ static struct argp_option opt_write[] = {
     {"sequence", 's',"<int>",0, "Number of sequential pages to be programmed."},
     {"random", 'r',"<int>",OPTION_ARG_OPTIONAL,"Generates random buffer data."},
     {"verbose", 'v', "<int>", OPTION_ARG_OPTIONAL, "Print status message."},
+    {"output", 'o', "<int>", OPTION_ARG_OPTIONAL, "Creates a binary output file"
+    " containing the write content. The file is created under ./output."},
     {0}
 };
 

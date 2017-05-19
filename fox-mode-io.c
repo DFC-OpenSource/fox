@@ -195,7 +195,8 @@ GEO:
     return -1;
 }
 
-static void fox_mio_print_read(struct fox_argp *argp) {
+
+static void fox_mio_print_rw(struct fox_argp *argp) {
     FILE *fp = NULL;
     uint64_t usec;
     struct stat st = {0};
@@ -212,14 +213,20 @@ static void fox_mio_print_read(struct fox_argp *argp) {
         gettimeofday(&tv, NULL);
         usec = tv.tv_sec * SEC64;
         usec += tv.tv_usec;
-        sprintf(filename, "output/%lu_read-c%dl%db%dp%ds%d", usec,
+
+        if (argp->cmdtype == CMDARG_READ)
+            sprintf(filename, "output/%lu_read-c%dl%db%dp%ds%d", usec,
             argp->io_ch, argp->io_lun, argp->io_blk, argp->io_pg, argp->io_seq);
+        else
+            sprintf(filename, "output/%lu_write-c%dl%db%dp%ds%d", usec,
+            argp->io_ch, argp->io_lun, argp->io_blk, argp->io_pg, argp->io_seq);
+
         fp = fopen(filename, "a");
     }
 
     for (offset = vpg_sz * argp->io_pg; offset < max_offset; offset += vpg_sz) {
 
-        if (argp->io_verb) {
+        if (argp->io_verb && argp->cmdtype == CMDARG_READ) {
             printf("\n =>Page %d\n", offset / vpg_sz);
             for (i = 0; i < 64 * 14; i++)
                 printf("%c", buf[offset + i]);
@@ -234,7 +241,7 @@ static void fox_mio_print_read(struct fox_argp *argp) {
     if (argp->io_out)
         fclose (fp);
 
-    if (argp->io_verb)
+    if (argp->io_verb && argp->cmdtype == CMDARG_READ)
         printf("\n %d page(s) have been read.\n", argp->io_seq);
 }
 
@@ -246,10 +253,9 @@ static void fox_mio_print(struct fox_argp *argp) {
         case CMDARG_WRITE:
             if (argp->io_verb)
                 printf(" %d page(s) have been programmed.\n", argp->io_seq);
-            break;
         case CMDARG_READ:
             if (argp->io_out || argp->io_verb)
-                fox_mio_print_read(argp);
+                fox_mio_print_rw(argp);
     }
 }
 
