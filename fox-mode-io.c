@@ -152,7 +152,7 @@ static int fox_mio_erase(struct fox_argp *argp) {
         if (!vblk)
             return -1;
 
-        if (prov_vblock_erase(vblk) < 0) {
+        if (prov_vblk_erase(vblk) < 0) {
             nvm_vblk_free(vblk);
             return -1;
         }

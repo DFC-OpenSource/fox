@@ -78,7 +78,7 @@ static int fox_write_vblk (struct nvm_vblk *vblk, struct fox_workload *wl)
     for (i = 0; i < wl->pgs; i++) {
         buf_off = buf + vpg_sz * i;
 
-        if (prov_vblock_pwrite(vblk, buf_off, vpg_sz,vpg_sz * i) != vpg_sz){
+        if (prov_vblk_pwrite(vblk, buf_off, vpg_sz,vpg_sz * i) != vpg_sz){
             printf ("WARNING: error when writing to vblk page.\n");
             return -1;
         }
@@ -106,16 +106,17 @@ int fox_alloc_vblks (struct fox_workload *wl)
         printf ("\r - Allocating blocks... [%d/%d]", blk_i, t_blks);
         fflush(stdout);
 
-        wl->vblks[blk_i] = malloc (sizeof(struct nvm_vblk));
-
         ch_i = blk_i / blk_ch;
         lun_i = (blk_i % blk_ch) / blk_lun;
 
         fox_timestamp_tmp_start(wl->stats);
 
+        wl->vblks[blk_i] = prov_vblk_get(ch_i, lun_i);
+
         /* TODO: treat error */
-        if(prov_get_vblock(ch_i, lun_i, wl->vblks[blk_i])<0)
+        if(wl->vblks[blk_i] == NULL)
             return -1;
+
         fox_timestamp_end(FOX_STATS_ERASE_T, wl->stats);
         fox_set_stats (FOX_STATS_ERASED_BLK, wl->stats, 1);
 
@@ -135,7 +136,7 @@ void fox_free_vblks (struct fox_workload *wl)
     t_blks = wl->blks * wl->luns * wl->channels;
 
     for (blk_i = 0; blk_i < t_blks; blk_i++)
-        prov_put_vblock(wl->vblks[blk_i]);
+        prov_vblk_put(wl->vblks[blk_i]);
 
     free (wl->vblks);
 }

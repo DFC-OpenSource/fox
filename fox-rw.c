@@ -89,7 +89,7 @@ int fox_write_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
         cmd_pgs = (i + cmd_pgs > blkoff + npgs) ? blkoff + npgs - i : cmd_pgs;
         tot_bytes = vpg_sz * cmd_pgs;
 
-        if (prov_vblock_pwrite(tgt->vblk,
+        if (prov_vblk_pwrite(tgt->vblk,
                             buf->buf_w + vpg_sz * i,
                             tot_bytes,
                             vpg_sz * i) != tot_bytes){
@@ -157,7 +157,7 @@ int fox_read_blk (struct fox_tgt_blk *tgt, struct fox_node *node,
         cmd_pgs = (i + cmd_pgs > blkoff + npgs) ? blkoff + npgs - i : cmd_pgs;
         tot_bytes = vpg_sz * cmd_pgs;
 
-        if (prov_vblock_pread(tgt->vblk,
+        if (prov_vblk_pread(tgt->vblk,
                             buf->buf_r + vpg_sz * i,
                             tot_bytes,
                             vpg_sz * i) != tot_bytes){
@@ -226,7 +226,7 @@ int fox_erase_blk (struct fox_tgt_blk *tgt, struct fox_node *node)
 {
     fox_timestamp_tmp_start(&node->stats);
 
-    if (prov_vblock_erase (tgt->vblk)<0)
+    if (prov_vblk_erase (tgt->vblk)<0)
         fox_set_stats (FOX_STATS_FAIL_E, &node->stats, 1);
 
     fox_timestamp_end(FOX_STATS_ERASE_T, &node->stats);

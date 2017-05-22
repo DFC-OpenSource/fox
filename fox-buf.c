@@ -59,6 +59,7 @@ static void *fox_alloc_blk_buf_t (struct fox_node *node, uint8_t type)
     size_t size = node->npgs * vpg_sz;
 
     buf = aligned_alloc (node->wl->geo->sector_nbytes, size);
+
     if (!buf)
         return buf;
     if (type == FOX_BUF_WRITE)
