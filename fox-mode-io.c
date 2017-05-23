@@ -138,7 +138,7 @@ static int fox_mio_erase(struct fox_argp *argp) {
     int blk_i;
     struct nvm_vblk *vblk;
     struct nvm_addr addr;
-    uint32_t cblk;
+    uint32_t cblk, pmode;
 
     addr.ppa = 0x0;
     cblk = argp->io_blk;
@@ -150,18 +150,30 @@ static int fox_mio_erase(struct fox_argp *argp) {
 
         vblk = nvm_vblk_alloc(dev, &addr, 1);
         if (!vblk)
-            return -1;
+            goto FAIL;
 
-        if (prov_vblock_erase(vblk) < 0) {
-            nvm_vblk_free(vblk);
-            return -1;
-        }
+        pmode = nvm_dev_get_pmode(dev);
+        if (nvm_dev_set_pmode(dev, 0x0) < 0)
+            goto FREE_VBLK;
+
+        if (nvm_vblk_erase(vblk) < 0)
+            goto SET_PMODE;
+
+        if (nvm_dev_set_pmode(dev, pmode) < 0)
+            goto FREE_VBLK;
 
         nvm_vblk_free(vblk);
         cblk++;
     }
 
     return 0;
+
+SET_PMODE:
+    nvm_dev_set_pmode(dev, pmode);
+FREE_VBLK:
+    nvm_vblk_free(vblk);
+FAIL:
+    return -1;
 }
 
 static int fox_mio_check(struct fox_argp *argp) {

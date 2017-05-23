@@ -249,6 +249,9 @@ void fox_exit_threads (struct fox_node *nodes)
         free (nodes[i].ch);
         free (nodes[i].lun);
         fox_exit_stats (&nodes[i].stats);
+        pthread_join(nodes[i].tid, NULL);
     }
     free (nodes);
+    free(th_ch);
+    free(nodes_ch);
 }

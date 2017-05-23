@@ -90,7 +90,7 @@ static int iso_read_prepare (struct fox_node *node, struct fox_blkbuf *bufblk)
                                                                      : cmd_pgs;
                     tot_bytes = vpg_sz * cmd_pgs;
                     blkoff = (ch_i * node->nluns) + lun_i;
-                    if (prov_vblock_pwrite(node->vblk_tgt.vblk,
+                    if (prov_vblk_pwrite(node->vblk_tgt.vblk,
                                         bufblk[blkoff].buf_w + vpg_sz * pg_i,
                                         tot_bytes,
                                         vpg_sz * pg_i)!=tot_bytes){
