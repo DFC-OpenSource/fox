@@ -301,16 +301,17 @@ ssize_t prov_vblk_erase(struct nvm_vblk * vblk)
         goto FAIL;
 
     err = nvm_vblk_erase(vblk);
-    if (err < 0) {
-        goto FAIL;
-    }
+    if (err < 0)
+        goto SET_PMODE;
 
     if (nvm_dev_set_pmode(virt_dev.dev, pmode) < 0)
         goto FAIL;
 
     return err;
 
-  FAIL:
+SET_PMODE:
+    nvm_dev_set_pmode(virt_dev.dev, pmode);
+FAIL:
     return -1;
 }
 
