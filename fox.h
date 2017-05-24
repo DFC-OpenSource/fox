@@ -416,7 +416,7 @@ ssize_t prov_vblk_pwrite(struct nvm_vblk *vblk, const void *buf,
 ssize_t prov_vblk_erase(struct nvm_vblk *vblk);
 
 struct nvm_vblk	*prov_vblk_get(int ch, int lun);
-int    	prov_vblk_put();
+int    	prov_vblk_put(struct nvm_vblk *vblk);
 void 	prov_dev_pr();
 void 	prov_ublk_pr(int lun);
 void 	prov_fblk_pr(int lun);
