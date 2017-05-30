@@ -227,7 +227,7 @@ static void fox_show_progress (struct fox_node *node)
     usec = fox_timestamp_end (FOX_STATS_RUNTIME, node[0].wl->stats);
 
     if (node->wl->output) {
-        rt = malloc (sizeof(void *) * node->wl->nthreads);
+        rt = malloc (sizeof(void *) * (node->wl->nthreads + 1));
         if (!rt)
             return;
 
@@ -287,6 +287,8 @@ static void fox_show_progress (struct fox_node *node)
         rt[0]->timestp = usec;
         fox_output_append_rt (rt[0], 0);
     }
+
+    free (rt);
 
     printf(" [%d%%|%.2Lf MB/s|%.1Lf]", wl_prog, th, iops);
     fflush(stdout);

@@ -355,6 +355,7 @@ void                 fox_exit_stats (struct fox_stats *);
 void                 fox_wait_for_ready (struct fox_workload *);
 void                 fox_wait_for_monitor (struct fox_workload *);
 int                  fox_alloc_blk_buf (struct fox_node *, struct fox_blkbuf *);
+void 		     fox_fill_wb (uint8_t *, size_t);
 void                 fox_blkbuf_reset (struct fox_node *, struct fox_blkbuf *);
 void                 fox_free_blkbuf (struct fox_blkbuf *, int);
 int                  fox_blkbuf_cmp (struct fox_node *, struct fox_blkbuf *,

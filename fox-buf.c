@@ -39,7 +39,7 @@
 #define FOX_BUF_WRITE 0x1
 #define FOX_BUF_READ  0x0
 
-static void fox_fill_wb (uint8_t *wb, size_t sz)
+void fox_fill_wb (uint8_t *wb, size_t sz)
 {
     int i;
     uint8_t byte = 0xff;

@@ -71,20 +71,28 @@ static int fox_write_vblk (struct nvm_vblk *vblk, struct fox_workload *wl)
 {
     uint8_t *buf, *buf_off;
     size_t vpg_sz = wl->geo->page_nbytes * wl->geo->nplanes;
-    int i;
+    int i, ret = -1;
 
-    buf = malloc (vblk->nbytes);
+    buf = malloc (vpg_sz * wl->pgs);
+    if (!buf)
+        return -1;
+
+    fox_fill_wb (buf, vpg_sz * wl->pgs);
 
     for (i = 0; i < wl->pgs; i++) {
         buf_off = buf + vpg_sz * i;
 
         if (prov_vblk_pwrite(vblk, buf_off, vpg_sz,vpg_sz * i) != vpg_sz){
-            printf ("WARNING: error when writing to vblk page.\n");
-            return -1;
+            printf ("\nWARNING: error when writing to vblk page.\n");
+            goto FREE_BUF;
         }
     }
 
-    return 0;
+    ret = 0;
+
+FREE_BUF:
+    free (buf);
+    return ret;
 }
 
 int fox_alloc_vblks (struct fox_workload *wl)

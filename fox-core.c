@@ -222,7 +222,7 @@ int main (int argc, char **argv) {
     if (wl->devname[0] == 0) {
         wl->devname = malloc (13);
         if (!wl->devname)
-            return -1;
+            goto MUTEX;
 
         memcpy (wl->devname, "/dev/nvme0n1", 13);
     }
@@ -230,7 +230,7 @@ int main (int argc, char **argv) {
     wl->dev = prov_dev_open(wl->devname);
     if (!wl->dev) {
         printf(" Device not found.\n");
-        goto MUTEX;
+        goto DEVNAME;
     }
 
     wl->geo = prov_get_geo(wl->dev);
@@ -309,6 +309,9 @@ EXIT_PROV:
     prov_exit ();
 DEV_CLOSE:
     prov_dev_close(wl->dev);
+DEVNAME:
+    if (!(argp->arg_flag & CMDARG_FLAG_D))
+        free (wl->devname);
 MUTEX:
     pthread_mutex_destroy (&wl->start_mut);
     pthread_cond_destroy (&wl->start_con);

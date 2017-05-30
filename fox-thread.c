@@ -188,42 +188,46 @@ static void *fox_thread_node (void * arg)
 
 struct fox_node *fox_create_threads (struct fox_workload *wl)
 {
-    int i;
+    int li, ci, i, err = 0;
     struct fox_node *node;
     if (!wl)
         goto ERR;
 
-    th_ch = calloc (sizeof(uint8_t) * wl->channels, 0);
-    nodes_ch = calloc (sizeof(uint8_t) * wl->channels, 0);
-    if (!th_ch || !nodes_ch)
+    th_ch = calloc (sizeof(uint8_t) * wl->channels, 1);
+    if (!th_ch)
         goto ERR;
+
+    nodes_ch = calloc (sizeof(uint8_t) * wl->channels, 1);
+    if (!nodes_ch)
+        goto FREE_TC;
 
     node = malloc (sizeof(struct fox_node) * wl->nthreads);
     if (!node) {
         printf ("thread: Memory allocation failed.\n");
-        goto ERR;
+        goto FREE_NC;
     }
 
-    for (i = 0; i < wl->nthreads; i++) {
-        node[i].wl = wl;
-        node[i].nid = i;
-        node[i].nblks = wl->blks;
-        node[i].npgs = wl->pgs;
-        node[i].delay = 0;
+    for (ci = 0; ci < wl->nthreads; ci++) {
+        node[ci].wl = wl;
+        node[ci].nid = ci;
+        node[ci].nblks = wl->blks;
+        node[ci].npgs = wl->pgs;
+        node[ci].delay = 0;
 
-        if (fox_init_stats (&node[i].stats))
-            goto ERR;
+        if (fox_init_stats (&node[ci].stats))
+            goto EXIT_CH;
 
-        if (fox_config_ch(&node[i])) {
-            printf("thread: Failed to start. id: %d\n", i);
-            goto ERR;
+        if (fox_config_ch(&node[ci])) {
+            printf("thread: Failed to start. id: %d\n", ci);
+            fox_exit_stats (&node[ci].stats);
+	    goto EXIT_CH;
         }
     }
 
-    for (i = 0; i < wl->nthreads; i++) {
-        if (fox_config_lun(&node[i])) {
-            printf("thread: Failed to start. id: %d\n", i);
-            goto ERR;
+    for (li = 0; li < wl->nthreads; li++) {
+        if (fox_config_lun(&node[li])) {
+            printf("thread: Failed to start. id: %d\n", li);
+            goto EXIT_LUN;
         }
     }
 
@@ -237,7 +241,26 @@ struct fox_node *fox_create_threads (struct fox_workload *wl)
     }
 
     return node;
+
+EXIT_LUN:
+    for (i = 0; i < li; i++)
+	free (node[i].lun);
+    err++;
+EXIT_CH:
+    for (i = 0; i < ci; i++) {
+        fox_exit_stats (&node[i].stats);
+        free (node[i].ch);
+    }
+    free (node);
+    err++;
+FREE_NC:
+    free (nodes_ch);
+    err++;
+FREE_TC:
+    free (th_ch);
+    err++;
 ERR:
+    printf("\nthread: Failure while starting threads: %d\n", err);
     return NULL;
 }
 
