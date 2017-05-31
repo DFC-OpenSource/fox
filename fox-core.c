@@ -248,15 +248,15 @@ int main (int argc, char **argv) {
         goto EXIT_ENG;
     }
 
-    /* Engine 3 and 100% read workload do not support memory comparison */
-    if (wl->engine->id == FOX_ENGINE_3 || wl->r_factor == 100) {
-        if (wl->memcmp)
-            printf ("\n NOTE: This mode does not support buffer comparison.\n");
-        wl->memcmp = 0;
-    }
-
     if (fox_check_workload(wl))
         goto EXIT_ENG;
+
+    /* Engine 3 and 100% read workload requires geometry memory comparison */
+    if (wl->engine->id == FOX_ENGINE_3 || wl->r_factor == 100)
+        if (wl->memcmp && wl->memcmp != WB_GEOMETRY) {
+            printf ("\n NOTE: This mode requires geometry write buffer (3).\n");
+            wl->memcmp = WB_GEOMETRY;
+        }
 
     if (fox_init_stats (gl_stats))
         goto EXIT_ENG;

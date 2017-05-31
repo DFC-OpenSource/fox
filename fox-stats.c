@@ -268,7 +268,7 @@ static void fox_show_progress (struct fox_node *node)
         tot_sec += th_sec;
 
         th += (totalb == 0 || th_sec == 0) ? 0 : totalb /  th_sec;
-        iops += (io_count == 0 || th_sec == 0) ? 
+        iops += (io_count == 0 || th_sec == 0) ?
                                           0 : (long double) io_count / th_sec;
         node[node_i].stats.iops = 0;
 
@@ -430,6 +430,7 @@ void fox_show_stats (struct fox_workload *wl, struct fox_node *node)
 void fox_show_workload (struct fox_workload *wl)
 {
     char line[80];
+    char mcname[20];
 
     sprintf (line, "\n --- WORKLOAD ---\n\n");
     fox_print (line, wl->output);
@@ -463,10 +464,26 @@ void fox_show_workload (struct fox_workload *wl)
     else
         sprintf (line, " - Output file  : disabled\n");
     fox_print (line, wl->output);
+
     if (wl->memcmp)
         sprintf (line, " - Read compare : enabled\n");
     else
         sprintf (line, " - Read compare : disabled\n");
+    fox_print (line, wl->output);
+    switch (wl->memcmp) {
+        case WB_READABLE:
+            sprintf (mcname, "human readable");
+            break;
+        case WB_GEOMETRY:
+            sprintf (mcname, "geometry based");
+            break;
+        case WB_RANDOM:
+        case WB_DISABLE:
+        default:
+            sprintf (mcname, "random data");
+    }
+    sprintf (line, " - Buffer type  : %s\n", mcname);
+
     fox_print (line, wl->output);
     sprintf (line, " - Engine       : %d (%s)\n", wl->engine->id,
                                                             wl->engine->name);

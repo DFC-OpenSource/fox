@@ -67,7 +67,7 @@ int fox_vblk_tgt (struct fox_node *node, uint16_t chid, uint16_t lunid,
     return 0;
 }
 
-static int fox_write_vblk (struct nvm_vblk *vblk, struct fox_workload *wl)
+static int fox_write_vblk_100r (struct nvm_vblk *vblk, struct fox_workload *wl)
 {
     uint8_t *buf, *buf_off;
     size_t vpg_sz = wl->geo->page_nbytes * wl->geo->nplanes;
@@ -77,7 +77,7 @@ static int fox_write_vblk (struct nvm_vblk *vblk, struct fox_workload *wl)
     if (!buf)
         return -1;
 
-    fox_fill_wb (buf, vpg_sz * wl->pgs);
+    fox_wb_geo (buf, vpg_sz * wl->pgs, wl->geo, vblk->blks[0], WB_GEO_FILL);
 
     for (i = 0; i < wl->pgs; i++) {
         buf_off = buf + vpg_sz * i;
@@ -130,7 +130,7 @@ int fox_alloc_vblks (struct fox_workload *wl)
 
         /* Write wl->pgs to vblk for 100% read workload */
         if (wl->w_factor == 0)
-            fox_write_vblk (wl->vblks[blk_i], wl);
+            fox_write_vblk_100r (wl->vblks[blk_i], wl);
     }
     printf ("\r - Preparing blocks... [%d/%d]\n", blk_i, t_blks);
 

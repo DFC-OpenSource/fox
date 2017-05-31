@@ -5,10 +5,10 @@
 #include <string.h>
 #include "fox.h"
 
-const char *argp_program_version = "fox v1.1";
+const char *argp_program_version = "fox v1.2";
 const char *argp_program_bug_address = "Ivan L. Picoli <ivpi@itu.dk>";
 
-static char doc_global[] = "\n*** FOX v1.1 ***\n"
+static char doc_global[] = "\n*** FOX v1.2 ***\n"
         " \n A tool for testing Open-Channel SSDs\n\n"
         " Available commands:\n"
         "  run              Run FOX based on command line parameters.\n"
@@ -57,6 +57,7 @@ static char doc_run[] =
         " command line.\n"
         "\n Example:"
         "\n     fox run <parameters>\n"
+        "\n     fox run -c 8 -l 4 -b 2 -p 128 -j 8 -m 2 -r 75 -v 8 -e 2 -o\n"
         "\nIf parameters are not provided, the default values will be used:"
         "\n     device   = /dev/nvme0n1"
         "\n     runtime  = 0 (only 1 iteration will be performed)"
@@ -91,10 +92,10 @@ static struct argp_option opt_run[] = {
     " of 8. The maximum value is the device maximum sectors per I/O."},
     {"sleep", 's', "<int>", 0, "Maximum delay between I/Os. Jobs sleep between "
     "I/Os in a maximum of <sleep> u-seconds."},
-    {"memcmp", 'm', NULL, OPTION_ARG_OPTIONAL, "If present, it enables buffer "
-    "comparison between write and read buffers. Not all cases are suitable "
-    "for memory comparison. Cases not supported: 100% reads, Engine 3 "
-    "(isolation)."},
+    {"memcmp", 'm', "<int>", 0, "If included, this argument it enables buffer "
+    "comparison between write and read buffers. Data types available: "
+    "(1)random data, (2)human readable, (3)geometry based. These cases only "
+    "support geometry based data: 100% reads, Engine 3 (isolation)."},
     {"output", 'o', NULL, OPTION_ARG_OPTIONAL, "If present, a set of output "
     "files will be generated. (1)metadata, (2)per I/O information, "
     "(3)real time average information"},
@@ -223,7 +224,9 @@ static error_t parse_opt_run (int key, char *arg, struct argp_state *state)
             args->arg_flag |= CMDARG_FLAG_S;
             break;
         case 'm':
-            args->memcmp = 1;
+            args->memcmp = (!arg) ? WB_RANDOM : atoi (arg);
+            if (args->memcmp < 0 || args->memcmp > 3)
+                argp_usage(state);
             args->arg_num++;
             args->arg_flag |= CMDARG_FLAG_M;
             break;
