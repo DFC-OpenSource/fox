@@ -107,7 +107,7 @@ READ:
                 if (fox_read_blk (&node->vblk_tgt,node,&nbuf,node->npgs,0))
                     goto BREAK;
             }
-            if (node->wl->w_factor < 100)
+            if (node->wl->r_factor > 0)
                 fox_blkbuf_reset(node, &nbuf);
         }
 
