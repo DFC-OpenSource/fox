@@ -136,7 +136,7 @@ If parameters are not provided, the default values will be used:
                              
   -l, --luns=<int>           Number of LUNs per channel.
   
-  -m, --memcmp               If included, this argument it enables buffer
+  -m, --memcmp=<int>         If included, this argument it enables buffer
                              comparison between write and read buffers. Data
                              types available: (1)random data, (2)human
                              readable, (3)geometry based. These cases only
@@ -244,6 +244,7 @@ Report bugs to Ivan L. Picoli <ivpi@itu.dk>.
  - Max I/O delay: 0 u-sec
  - Output file  : enabled
  - Read compare : enabled
+ - Buffer type  : random data
  - Engine       : 2 (round-robin)
 
  --- GEOMETRY DISTRIBUTION [TID: (CH LUN)] ---
