@@ -136,10 +136,12 @@ If parameters are not provided, the default values will be used:
                              
   -l, --luns=<int>           Number of LUNs per channel.
   
-  -m, --memcmp               If present, it enables buffer comparison between
-                             write and read buffers. Not all cases are suitable
-                             for memory comparison. Cases not supported: 100%
-                             reads, Engine 3 (isolation).
+  -m, --memcmp               If included, this argument it enables buffer
+                             comparison between write and read buffers. Data
+                             types available: (1)random data, (2)human
+                             readable, (3)geometry based. These cases only
+                             support geometry based data: 100% reads, Engine 3
+                             (isolation).
                              
   -o, --output               If present, a set of output files will be
                              generated. For now .csv is supported. Files created 
@@ -155,6 +157,7 @@ If parameters are not provided, the default values will be used:
   -p, --pages=<int>          Number of pages per block.
   
   -r, --read=<0-100>         Percentage of read. Read+write must sum 100.
+  
   -s, --sleep=<int>          Maximum delay between I/Os. Jobs sleep between
                              I/Os in a maximum of <sleep> u-seconds.
                              Each thread gets a different sleep time (smaller
@@ -190,12 +193,15 @@ FOX help:
 lab@lab:~/fox$ ./fox --help
 Usage: fox [OPTION...] fox [<cmd> [cmd-options]]
 
-*** FOX v1.0 ***
+*** FOX v1.2 ***
  
  A tool for testing Open-Channel SSDs
 
  Available commands:
   run              Run FOX based on command line parameters.
+  erase            Erases a specific range of physical blocks.
+  write            Writes to a specific range of physical pages.
+  read             Reads from a specific range of physical pages.
 
  Examples:
   fox run <parameters>     - custom configuration
