@@ -5,10 +5,10 @@
 #include <string.h>
 #include "fox.h"
 
-const char *argp_program_version = "fox v1.2";
+const char *argp_program_version = "fox v1.3";
 const char *argp_program_bug_address = "Ivan L. Picoli <ivpi@itu.dk>";
 
-static char doc_global[] = "\n*** FOX v1.2 ***\n"
+static char doc_global[] = "\n*** FOX v1.3 ***\n"
         " \n A tool for testing Open-Channel SSDs\n\n"
         " Available commands:\n"
         "  run              Run FOX based on command line parameters.\n"
@@ -17,7 +17,7 @@ static char doc_global[] = "\n*** FOX v1.2 ***\n"
         "  read             Reads from a specific range of physical pages.\n"
         "\n Examples:"
         "\n  fox run <parameters>     - custom configuration"
-        "\n  fox --help               - show available parameters"
+        "\n  fox run --help           - show available parameters"
         "\n  fox <without parameters> - run with default configuration\n"
         " \n Initial release developed by Ivan L. Picoli, <ivpi@itu.dk>\n\n";
 
@@ -86,6 +86,11 @@ static struct argp_option opt_run[] = {
     "and the geometry of the device is split among threaded jobs."},
     {"read", 'r', "<0-100>", 0, "Percentage of read. Read+write must sum 100."},
     {"write", 'w',"<0-100>",0, "Percentage of write. Read+write must sum 100."},
+    {"write-seq", 'n',"<int>",0, "Number of pages to be written in sequence "
+    "before a read command. The number of reads in sequence will be "
+    "calculated based on the percentage of reads (-r) and write-seq (-n). "
+    "e.g.(1) -w 75 -r 25 -n 150 = 150 writes, 50 reads, 150 w, 50 r... e.g.(2) "
+    "-w 25 -r 75 -n 1 = 1 write, 3 reads, 1 w, 3 r..."},
     {"vector", 'v',"<int>",0, "Number of physical sectors per I/O. This value"
     " must be multiple of <sectors per page * number of planes>. e.g: if"
     " device has 4 sectors per page and 2 planes, this value must be multiple"
@@ -208,6 +213,13 @@ static error_t parse_opt_run (int key, char *arg, struct argp_state *state)
             args->w_factor = atoi (arg);
             args->arg_num++;
             args->arg_flag |= CMDARG_FLAG_W;
+            break;
+        case 'n':
+            if (!arg)
+                argp_usage(state);
+            args->w_sequence = atoi (arg);
+            args->arg_num++;
+            args->arg_flag |= CMDARG_FLAG_N;
             break;
         case 'v':
             if (!arg)

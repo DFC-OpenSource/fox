@@ -82,6 +82,7 @@ enum {
 #define CMDARG_FLAG_M       (1 << 11)
 #define CMDARG_FLAG_O       (1 << 12)
 #define CMDARG_FLAG_E       (1 << 13)
+#define CMDARG_FLAG_N       (1 << 14)
 
 #define FOX_RUN_MODE         0x0
 #define FOX_IO_MODE          0x1
@@ -120,6 +121,7 @@ struct fox_argp
     uint8_t     nthreads;
     uint16_t    w_factor;
     uint16_t    r_factor;
+    uint16_t    w_sequence;
     uint16_t    vector;
     uint32_t    max_delay;
     uint8_t     memcmp;
@@ -195,6 +197,7 @@ struct fox_workload {
     uint8_t                 nthreads;
     uint16_t                w_factor;
     uint16_t                r_factor;
+    uint16_t                w_sequence;
     uint16_t                nppas;
     uint32_t                max_delay;
     uint8_t                 memcmp;

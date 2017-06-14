@@ -77,8 +77,13 @@ static int fox_check_workload (struct fox_workload *wl)
         return -1;
     }
 
+    if (wl->w_sequence > wl->pgs) {
+        printf (" Write sequence (-n) must be <= than pages per block (-p).\n");
+        return -1;
+    }
+
     if (wl->nppas > 64 || wl->nppas % pg_ppas != 0) {
-        printf (" Vector must be multiple of %d and <= 64.\n", pg_ppas);
+        printf (" Vector (-v) must be multiple of %d and <= 64.\n", pg_ppas);
         return -1;
     }
 
@@ -91,12 +96,29 @@ static void fox_setup_io_factor (struct fox_workload *wl)
 {
     uint16_t mm;
 
+    /* 100% workloads */
     if (wl->w_factor == 0 || wl->r_factor == 0) {
 	wl->w_factor = wl->w_factor / 100;
 	wl->r_factor = wl->r_factor / 100;
 	return;
     }
 
+    /* User specific write sequence */
+    if (wl->w_sequence) {
+        wl->r_factor = (wl->w_sequence * wl->r_factor) / wl->w_factor;
+
+        if (wl->r_factor <= 1) {
+            wl->r_factor = 1;
+            wl->w_factor = wl->w_factor / (100 - wl->w_factor);
+        } else
+            wl->w_factor = wl->w_sequence;
+
+        printf("W: %d, R: %d\n", wl->w_factor, wl->r_factor);
+
+        return;
+    }
+
+    /* Minimum multiple in common */
     mm = (wl->w_factor > wl->r_factor) ? wl->r_factor : wl->w_factor;
 
     while (mm > 1)
@@ -214,6 +236,7 @@ int main (int argc, char **argv) {
     wl->nthreads = argp->nthreads;
     wl->r_factor = argp->r_factor;
     wl->w_factor = argp->w_factor;
+    wl->w_sequence = argp->w_sequence;
     wl->nppas = argp->vector;
     wl->max_delay = argp->max_delay;
     wl->memcmp = argp->memcmp;
