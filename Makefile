@@ -11,6 +11,7 @@ OBJ += fox-mode-io.o
 OBJ += engines/fox-sequential.o
 OBJ += engines/fox-round-robin.o
 OBJ += engines/fox-isolation.o
+OBJ += engines/fox-vectored.o
 CC = gcc
 CFLAGS = -O2 -Wall
 CFLAGSXX =

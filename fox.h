@@ -41,6 +41,7 @@
 #define FOX_ENGINE_1  0x1 /* All sequential */
 #define FOX_ENGINE_2  0x2 /* All round-robin */
 #define FOX_ENGINE_3  0x3 /* I/O Isolation */
+#define FOX_ENGINE_4  0x4 /* Vectored paralellism */
 
 #define PROV_NBLK_PER_VBLK 0x1
 
@@ -402,6 +403,9 @@ int    fox_read_blk (struct fox_tgt_blk *, struct fox_node *,
                                       struct fox_blkbuf *, uint16_t, uint16_t);
 int    fox_write_blk (struct fox_tgt_blk *, struct fox_node *,
                                       struct fox_blkbuf *, uint16_t, uint16_t);
+int    fox_write_vec_pg (struct fox_node *, struct fox_blkbuf *, uint16_t,
+                                                                    uint16_t);
+int    fox_read_vec_pg (struct fox_node *, struct fox_blkbuf *, uint16_t, uint16_t);
 int    fox_update_runtime (struct fox_node *);
 double fox_check_progress_runtime (struct fox_node *);
 double fox_check_progress_pgs (struct fox_node *);
@@ -412,6 +416,7 @@ struct fox_engine   *fox_get_engine(uint16_t);
 int                  foxeng_seq_init (struct fox_workload *);
 int                  foxeng_rr_init (struct fox_workload *);
 int                  foxeng_iso_init (struct fox_workload *);
+int                  foxeng_vec_init (struct fox_workload *);
 
 /* provisioning */
 int     prov_init(struct nvm_dev *dev, const struct nvm_geo *geo);

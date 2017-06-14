@@ -54,6 +54,8 @@ int fox_update_runtime (struct fox_node *node)
 {
     double rt;
 
+    //printf("check: %f\n",fox_check_progress_pgs(node));
+
     if (node->wl->runtime) {
         rt = fox_check_progress_runtime(node);
         fox_set_progress(&node->stats,
@@ -62,6 +64,214 @@ int fox_update_runtime (struct fox_node *node)
             return 1;
     } else
         fox_set_progress(&node->stats, (uint16_t) fox_check_progress_pgs(node));
+
+    return 0;
+}
+
+int fox_write_vec_pg (struct fox_node *node, struct fox_blkbuf *buf, uint16_t blkoff, uint16_t pgoff)
+{
+    struct nvm_ret ret = {0,0};
+    struct nvm_addr *ppa_vec;
+    uint64_t tstart, tend;
+    uint8_t failed = 0;
+    struct fox_output_row *row;
+    uint8_t *vecbuf;
+
+    int ppa_i, cmd_i, vec_i, cmdppas;
+    int ppas_pg = node->wl->geo->nsectors * node->wl->geo->nplanes;
+    int nppas = ppas_pg * node->nchs * node->nluns;
+    int cmdpgs;
+    int ncmds = (nppas % node->wl->nppas == 0) ? nppas / node->wl->nppas : (nppas / node->wl->nppas) + 1;
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
+    size_t tot_bytes = node->wl->geo->sector_nbytes * nppas;
+
+    const int PMODE = nvm_dev_get_pmode(node->wl->dev);
+
+    ppa_vec = calloc (1, sizeof (struct nvm_addr) * nppas);
+    if (!ppa_vec)
+        return -1;
+
+    vecbuf = calloc (1, node->nchs * node->nluns * tot_bytes);
+    if (!vecbuf)
+        return -1;
+
+    ppa_i = 0;
+    for (cmd_i = 0; cmd_i < ncmds; cmd_i++) {
+
+        cmdppas = (ppa_i + node->wl->nppas > nppas) ? nppas - ppa_i : node->wl->nppas;
+        cmdpgs = (cmdppas % ppas_pg == 0) ? cmdppas / ppas_pg : (cmdppas / ppas_pg) + 1;
+
+        for (vec_i = 0; vec_i < cmdppas; vec_i++) {
+            ppa_vec[vec_i].g.ch = node->ch[((vec_i + cmd_i * node->wl->nppas) / ppas_pg) / node->nluns];
+            ppa_vec[vec_i].g.lun = node->lun[((vec_i + cmd_i * node->wl->nppas) / ppas_pg) % node->nluns];
+            ppa_vec[vec_i].g.pl = ((vec_i + cmd_i * node->wl->nppas) % ppas_pg) / node->wl->geo->nsectors;
+
+            fox_vblk_tgt(node, ppa_vec[vec_i].g.ch, ppa_vec[vec_i].g.lun, blkoff);
+
+            ppa_vec[vec_i].g.blk = node->vblk_tgt.vblk->blks[0].g.blk;
+            ppa_vec[vec_i].g.pg = pgoff;
+            ppa_vec[vec_i].g.sec = vec_i % node->wl->geo->nsectors;
+
+            ppa_i++;
+
+            memcpy(vecbuf + node->wl->geo->sector_nbytes * (vec_i + cmd_i * node->wl->nppas),
+
+                    (buf[(vec_i + cmd_i * node->wl->nppas) / ppas_pg].buf_w + vpg_sz * pgoff) +
+                    (ppa_vec[vec_i].g.sec +
+                    (ppa_vec[vec_i].g.pl * node->wl->geo->nsectors)
+                    * node->wl->geo->sector_nbytes),
+
+                    node->wl->geo->sector_nbytes);
+        }
+
+        tstart = fox_timestamp_tmp_start(&node->stats);
+
+        if (nvm_addr_write(node->wl->dev, ppa_vec, cmdppas,
+                vecbuf, NULL, PMODE, &ret)) {
+            fox_set_stats(FOX_STATS_FAIL_W, &node->stats, cmdpgs);
+            tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
+            failed++;
+            goto FAILED;
+        }
+
+        tend = fox_timestamp_end(FOX_STATS_WRITE_T, &node->stats);
+
+        fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
+        fox_set_stats(FOX_STATS_BWRITTEN, &node->stats, node->wl->geo->sector_nbytes * cmdppas);
+        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats, node->wl->geo->sector_nbytes * cmdppas);
+        fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
+
+FAILED:
+        fox_set_stats(FOX_STATS_PGS_W, &node->stats, cmdpgs);
+        node->stats.pgs_done += cmdpgs;
+
+        if (node->wl->output) {
+            row = fox_output_new();
+            row->ch = node->nchs;
+            row->lun = node->nluns;
+            row->blk = blkoff;
+            row->pg = pgoff;
+            row->tstart = tstart;
+            row->tend = tend;
+            row->ulat = tend - tstart;
+            row->type = 'w';
+            row->failed = failed;
+            row->datacmp = 2;
+            row->size = node->wl->geo->sector_nbytes * cmdppas;
+            fox_output_append(row, node->nid);
+        }
+
+        if (fox_update_runtime(node) || (node->wl->stats->flags & FOX_FLAG_DONE))
+            return 1;
+        else if (node->delay)
+            usleep(node->delay);
+
+    }
+
+    return 0;
+}
+
+int fox_read_vec_pg (struct fox_node *node, struct fox_blkbuf *buf, uint16_t blkoff, uint16_t pgoff)
+{
+    struct nvm_ret ret = {0,0};
+    struct nvm_addr *ppa_vec;
+    uint64_t tstart, tend;
+    uint8_t failed = 0;
+    struct fox_output_row *row;
+    uint8_t *vecbuf;
+
+    int ppa_i, cmd_i, vec_i, cmdppas;
+    int ppas_pg = node->wl->geo->nsectors * node->wl->geo->nplanes;
+    int nppas = ppas_pg * node->nchs * node->nluns;
+    int cmdpgs;
+    int ncmds = (nppas % node->wl->nppas == 0) ? nppas / node->wl->nppas : (nppas / node->wl->nppas) + 1;
+    size_t vpg_sz = node->wl->geo->page_nbytes * node->wl->geo->nplanes;
+    size_t tot_bytes = node->wl->geo->sector_nbytes * nppas;
+
+    const int PMODE = nvm_dev_get_pmode(node->wl->dev);
+
+    ppa_vec = calloc (1, sizeof (struct nvm_addr) * nppas);
+    if (!ppa_vec)
+        return -1;
+
+    vecbuf = calloc (1, node->nchs * node->nluns * tot_bytes);
+    if (!vecbuf)
+        return -1;
+
+    ppa_i = 0;
+    for (cmd_i = 0; cmd_i < ncmds; cmd_i++) {
+
+        cmdppas = (ppa_i + node->wl->nppas > nppas) ? nppas - ppa_i : node->wl->nppas;
+        cmdpgs = (cmdppas % ppas_pg == 0) ? cmdppas / ppas_pg : (cmdppas / ppas_pg) + 1;
+
+        for (vec_i = 0; vec_i < cmdppas; vec_i++) {
+            ppa_vec[vec_i].g.ch = node->ch[((vec_i + cmd_i * node->wl->nppas) / ppas_pg) / node->nluns];
+            ppa_vec[vec_i].g.lun = node->lun[((vec_i + cmd_i * node->wl->nppas) / ppas_pg) % node->nluns];
+            ppa_vec[vec_i].g.pl = ((vec_i + cmd_i * node->wl->nppas) % ppas_pg) / node->wl->geo->nsectors;
+
+            fox_vblk_tgt(node, ppa_vec[vec_i].g.ch, ppa_vec[vec_i].g.lun, blkoff);
+
+            ppa_vec[vec_i].g.blk = node->vblk_tgt.vblk->blks[0].g.blk;
+            ppa_vec[vec_i].g.pg = pgoff;
+            ppa_vec[vec_i].g.sec = vec_i % node->wl->geo->nsectors;
+
+            ppa_i++;
+        }
+
+        tstart = fox_timestamp_tmp_start(&node->stats);
+
+        if (nvm_addr_read(node->wl->dev, ppa_vec, cmdppas,
+                vecbuf, NULL, PMODE, &ret)) {
+            fox_set_stats(FOX_STATS_FAIL_R, &node->stats, cmdpgs);
+            tend = fox_timestamp_end(FOX_STATS_RUNTIME, &node->stats);
+            failed++;
+            goto FAILED;
+        }
+
+        for (vec_i = 0; vec_i < cmdppas; vec_i++) {
+            memcpy((buf[(vec_i + cmd_i * node->wl->nppas) / ppas_pg].buf_r + vpg_sz * pgoff) +
+                    (ppa_vec[vec_i].g.sec +
+                    (ppa_vec[vec_i].g.pl * node->wl->geo->nsectors)
+                    * node->wl->geo->sector_nbytes),
+
+                    vecbuf + node->wl->geo->sector_nbytes * (vec_i + cmd_i * node->wl->nppas),
+
+                    node->wl->geo->sector_nbytes);
+        }
+
+        tend = fox_timestamp_end(FOX_STATS_READ_T, &node->stats);
+
+        fox_timestamp_end(FOX_STATS_RW_SECT, &node->stats);
+        fox_set_stats(FOX_STATS_BREAD, &node->stats, node->wl->geo->sector_nbytes * cmdppas);
+        fox_set_stats(FOX_STATS_BRW_SEC, &node->stats, node->wl->geo->sector_nbytes * cmdppas);
+        fox_set_stats(FOX_STATS_IOPS, &node->stats, 1);
+
+FAILED:
+        fox_set_stats(FOX_STATS_PGS_R, &node->stats, cmdpgs);
+        node->stats.pgs_done += cmdpgs;
+
+        if (node->wl->output) {
+            row = fox_output_new();
+            row->ch = node->nchs;
+            row->lun = node->nluns;
+            row->blk = blkoff;
+            row->pg = pgoff;
+            row->tstart = tstart;
+            row->tend = tend;
+            row->ulat = tend - tstart;
+            row->type = 'r';
+            row->failed = failed;
+            row->datacmp = 2;
+            row->size = node->wl->geo->sector_nbytes * cmdppas;
+            fox_output_append(row, node->nid);
+        }
+
+        if (fox_update_runtime(node) || (node->wl->stats->flags & FOX_FLAG_DONE))
+            return 1;
+        else if (node->delay)
+            usleep(node->delay);
+
+    }
 
     return 0;
 }

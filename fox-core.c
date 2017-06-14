@@ -158,7 +158,7 @@ struct fox_engine *fox_get_engine(uint16_t id)
 
 static int fox_init_engs (struct fox_workload *wl)
 {
-    if (foxeng_seq_init(wl) || foxeng_rr_init(wl) || foxeng_iso_init(wl))
+    if (foxeng_seq_init(wl) || foxeng_rr_init(wl) || foxeng_iso_init(wl) || foxeng_vec_init(wl))
         return -1;
 
     return 0;
